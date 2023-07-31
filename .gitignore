@@ -1,0 +1,11 @@
+*.o
+*.a
+boot.img
+System.map
+tags
+boot/bootsect
+boot/setup
+tools/system
+tools/kernel
+tmp_make
+include/debug.h
