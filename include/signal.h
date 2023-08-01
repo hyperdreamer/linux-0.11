@@ -68,13 +68,15 @@ int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 ////////////////////////////////////////////////////////////
 // a debugger switcher. Urgely but it works! by Henry :-)
 #ifndef DEBUG
-#define DEBUG
+//#define DEBUG
 #endif
 
 #ifdef DEBUG
 // bochs's magic break
-#define breakpoint()\
+#define breakpoint() \
     __asm__ __volatile__("xchgw %%bx, %%bx\n\t":::"%ebx")
+
+#define INFINITY 0xffffffffffffffff
 #else
 #define breakpoint() { /*nothing :-)*/; }
 #endif
