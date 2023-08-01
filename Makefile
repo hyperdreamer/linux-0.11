@@ -87,7 +87,7 @@ dep: $(subdirs)
 	sed '/\#\#\# Dependencies/q' < Makefile > tmp_make
 	(for i in init/*.c;do echo -n "init/";$(CPP) -M $$i;done) >> tmp_make
 	cp tmp_make Makefile
-	-@$(foreach prereq,$^,make dep -C $(prereq);)
+	@$(foreach prereq,$^,make dep -C $(prereq);)
 
 ### Dependencies:
 init/main.o: init/main.c include/unistd.h include/sys/stat.h \
