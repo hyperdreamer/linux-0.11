@@ -2,10 +2,6 @@
  * outb, intb:      version without delay
  * outb_p, intb_:   version with delay
  */
-#ifdef DEBUG
-#include <string.h>
-#endif
-
 #define outb(value,port) \
     __asm__ ("outb %%al, %%dx\n\t" \
              : \
@@ -53,36 +49,3 @@
                         ); \
      _v; \
     })
-
-#ifdef DEBUG
-inline void poll_parallel_busy() {
-    __asm__ ("1:\n\t"
-             "int $0x379, %%al\n\t"
-             "andb $0x80, %%al\n\t"
-             "compb $0, %%al\n\t"
-             "jnz 1b\n\t"
-             :
-             :
-             :"%eax"
-            );
-}
-
-inline void string_to_parallel(const char* string, int len) 
-{
-    if (len == -1) len = strlen(string);
-
-    for (int i = 0; i < len; i++) {
-        outb(string[i], 0xe9);  // bochs' 0xe9 hack
-        poll_parallel_busy();
-        outb(string[i], 0x378);
-        // telling the controller the data is ready
-        __asm__ ("inb $0x37a, %%al\n\t"
-                 "orb $1, %%al\n\t"
-                 "outb %%al, $0x37a\n\t"
-                 :
-                 :
-                 :"%eax"
-                );
-    }
-}
-#endif
