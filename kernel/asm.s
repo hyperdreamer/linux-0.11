@@ -15,7 +15,8 @@
 .globl double_fault, coprocessor_segment_overrun
 .globl invalid_TSS, segment_not_present, stack_segment
 .globl general_protection, coprocessor_error, irq13, reserved
-
+# Warning: If you don't wanna mess out the stack layout, explictly use 
+# "pushl -- popl" instead of "push -- pop "
                                 # stack layout:
                                 # esp+44: return address
 divide_error:
@@ -28,9 +29,9 @@ no_error_code:
 	pushl %edi                  # esp+24
 	pushl %esi                  # esp+20
 	pushl %ebp                  # esp+16
-	pushw %ds                   # esp+12
-	pushw %es                   # esp+8
-	pushw %fs                   # esp+4 :-),  the increment is 4
+	pushl %ds                   # esp+12
+	pushl %es                   # esp+8
+	pushl %fs                   # esp+4 :-),  the increment is 4
 	pushl $0                    # "error code" as 0, the second parameter for call
 	leal 44(%esp), %edx         # store old eip into %edx
 	pushl %edx                  # old eip address, the first parameter for call
@@ -41,9 +42,9 @@ no_error_code:
 	movw %dx, %fs
 	call *%eax   # call the real precess entity whose address was stored in %eax
 	addl $8, %esp
-	popw %fs
-	popw %es
-	popw %ds
+	popl %fs
+	popl %es
+	popl %ds
 	popl %ebp
 	popl %esi
 	popl %edi
@@ -112,9 +113,9 @@ error_code:
 	pushl %edi                  # esp+24
 	pushl %esi                  # esp+20
 	pushl %ebp                  # esp+16
-	pushw %ds                   # esp+12
-	pushw %es                   # esp+8
-	pushw %fs                   # esp+4
+	pushl %ds                   # esp+12
+	pushl %es                   # esp+8
+	pushl %fs                   # esp+4
 	pushl %eax                  # error code (esp+0), the second parameter for call
 	leal 44(%esp), %eax         # get return address
 	pushl %eax                  # return address: the first parameter for call
@@ -125,9 +126,9 @@ error_code:
 	movw %ax, %fs
 	call *%ebx
 	addl $8, %esp
-	popw %fs
-	popw %es
-	popw %ds
+	popl %fs
+	popl %es
+	popl %ds
 	popl %ebp
 	popl %esi
 	popl %edi
