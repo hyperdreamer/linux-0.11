@@ -2,6 +2,10 @@
  * outb, intb:      version without delay
  * outb_p, intb_:   version with delay
  */
+#ifdef DEBUG
+#include <string.h>
+#endif
+
 #define outb(value,port) \
     __asm__ ("outb %%al, %%dx\n\t" \
              : \
@@ -65,6 +69,8 @@ inline void poll_parallel_busy() {
 
 inline void string_to_parallel(const char* string, int len) 
 {
+    if (len == -1) len = strlen(string);
+
     for (int i = 0; i < len; i++) {
         outb(string[i], 0xe9);  // bochs' 0xe9 hack
         poll_parallel_busy();
