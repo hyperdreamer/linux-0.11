@@ -73,6 +73,9 @@ inline void string_to_parallel(const char* string, int len)
         __asm__ ("inb $0x37a, %%al\n\t"
                  "orb $1, %%al\n\t"
                  "outb %%al, $0x37a\n\t"
+                 :
+                 :
+                 :"%eax"
                 );
     }
 }
