@@ -41,15 +41,10 @@ tags: boot.img
 	-$(CTAGS)
 	sync
 
-boot.img: boot/bootsect boot/setup tools/system 
-	cp -f tools/system system.tmp
-	strip system.tmp
-	$(OBJCOPY) system.tmp tools/kernel
-	rm system.tmp
+boot.img: boot/bootsect boot/setup tools/kernel
 	dd if=boot/bootsect of=$@ bs=512 count=1
 	dd if=boot/setup of=$@ seek=1 bs=512 count=4
-	dd if=tools/kernel of=$@ seek=5
-	rm tools/kernel
+	dd if=tools/kernel of=$@ seek=5 bs=512
 	sync
 
 boot/head.o: boot/head.s
@@ -57,6 +52,9 @@ boot/head.o: boot/head.s
 
 int/main.o: init/main.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
+
+tools/kernel: tools/system
+	$(OBJCOPY) $< $@
 
 tools/system: $(components) $(LDFILE)
 	$(LD) $(LDFLAGS) $(components) -o $@ -T $(LDFILE) > System.map
@@ -75,8 +73,8 @@ boot/bootsect: boot/bootsect.s $(LDFILE_BOOT)
 
 .PHONY: clean
 clean: $(subdirs)
-	rm -f boot.img System.map tmp_make core boot/bootsect boot/setup
-	rm -f init/*.o tools/system boot/*.o
+	rm -f boot.img System.map tmp_make boot/bootsect boot/setup
+	rm -f init/*.o tools/system tools/kernel boot/*.o
 	@$(foreach prereq,$^,make clean -C $(prereq);)
 	
 .PHONY: backup
