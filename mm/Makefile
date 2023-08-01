@@ -5,14 +5,14 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (ie not a .c file).
 #
-CC		:= gcc -m32
+CC		:= gcc -m32 -march=pentium3
 CFLAGS	:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
 		   -finline-functions -fno-stack-protector -nostdinc -I../include
 AS		:= as --32
 AR		:= ar
 LD 		:= ld -m elf_i386
 LDFLAGS	:= -r
-CPP		:= gcc -m32 -E -nostdinc -I../include
+CPP		:= gcc -m32 -march=pentium3 -E -nostdinc -I../include
 
 asm_objs = $(patsubst %.s,%.o,$(wildcard *.s))
 cc_objs  = $(patsubst %.c,%.o,$(wildcard *.c))

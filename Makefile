@@ -10,10 +10,10 @@ LDFLAGS		:= -s -x -M			# for optimization
 #LDFLAGS		:= -M				# for debug
 LDFILE 		:= kernel.ld
 LDFILE_BOOT := boot/boot.ld
-CC			:= gcc -m32 $(RAMDISK)
+CC			:= gcc -m32 -march=pentium3 $(RAMDISK)
 CFLAGS		:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
 			   -finline-functions -fno-stack-protector -nostdinc -Iinclude
-CPP			:= gcc -m32 -E -nostdinc -Iinclude
+CPP			:= gcc -m32 -march=pentium3 -E -nostdinc -Iinclude
 OBJCOPY 	:= objcopy -R .pdr -R .comment -R .note -S -O binary
 CTAGS		:= /usr/bin/ctags --c-kinds=+p --c++-kinds=+p --fields=+iaS --extra=+qf -R
 

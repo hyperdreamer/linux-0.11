@@ -6,11 +6,11 @@
 # unless it's something special (ie not a .c file).
 #
 
-CC		:= gcc -m32
+CC		:= gcc -m32 -march=pentium3
 CFLAGS	:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
 		   -finline-functions -fno-stack-protector -nostdinc -I../../include
 AR		:= ar
-CPP		:= gcc -m32 -E -nostdinc -I../../include
+CPP		:= gcc -m32 -march=pentium3 -E -nostdinc -I../../include
 
 objs 	= $(patsubst %.c,%.o,$(wildcard *.c))
 
