@@ -34,9 +34,6 @@ dep:
 	cp tmp_make Makefile
 
 ### Dependencies:
-_exit.s _exit.o: _exit.c ../include/unistd.h ../include/sys/stat.h \
- ../include/sys/types.h ../include/sys/times.h ../include/sys/utsname.h \
- ../include/utime.h
 close.s close.o: close.c ../include/unistd.h ../include/sys/stat.h \
  ../include/sys/types.h ../include/sys/times.h ../include/sys/utsname.h \
  ../include/utime.h
@@ -46,6 +43,9 @@ dup.s dup.o: dup.c ../include/unistd.h ../include/sys/stat.h \
  ../include/utime.h
 errno.s errno.o: errno.c
 execve.s execve.o: execve.c ../include/unistd.h ../include/sys/stat.h \
+ ../include/sys/types.h ../include/sys/times.h ../include/sys/utsname.h \
+ ../include/utime.h
+_exit.s _exit.o: _exit.c ../include/unistd.h ../include/sys/stat.h \
  ../include/sys/types.h ../include/sys/times.h ../include/sys/utsname.h \
  ../include/utime.h
 malloc.s malloc.o: malloc.c ../include/linux/kernel.h ../include/linux/mm.h \

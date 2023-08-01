@@ -36,9 +36,7 @@ void show_task(int nr,struct task_struct * p)
 
 void show_stat(void)
 {
-	int i;
-
-	for (i=0;i<NR_TASKS;i++)
+	for (int i=0; i < NR_TASKS; i++)
 		if (task[i])
 			show_task(i,task[i]);
 }
@@ -107,7 +105,6 @@ void math_state_restore()
 void schedule(void)
 {
 	struct task_struct** p;
-    int next;
 /* check alarm, wake up any interruptible tasks that have got a signal */
     for (p = &LAST_TASK; p > &FIRST_TASK; --p) /* TO READ */
         if (*p) {
@@ -123,24 +120,25 @@ void schedule(void)
             }
         }
 /* this is the scheduler proper: */
+    int next, c, i;
     do {
-        int c = -1;                 /* why not 0, can counter be < -1 ? */
+        c = -1;                 /* why not 0, can counter be < -1 ? */
         next = 0;
-        int i = NR_TASKS;
-        p = &task[NR_TASKS];
+        i = NR_TASKS;
+        p = task + NR_TASKS;    // the ghost task
 
-        while (--i) {
-            if (!*--p)
-                continue;
+        while (--i) {   // i in [NR_TASKS..1], task[0] will never be touched
+            if (!*--p) continue;
             // get the task with the largest counter :-)
             if ((*p)->state == TASK_RUNNING && (*p)->counter > c) 
                 c = (*p)->counter, next = i;
         }
         if (c) break; // if the largest counter is larger than 0 then break
                       // otherwise reset counters of all tasks  
-        for(p = &LAST_TASK ; p > &FIRST_TASK ; --p) 
+        for(p = &LAST_TASK; p > &FIRST_TASK; --p) 
             if (*p) (*p)->counter = ((*p)->counter >> 1) + (*p)->priority;
     } while (1);
+
 	switch_to(next);
 }
 
@@ -247,10 +245,8 @@ void floppy_off(unsigned int nr)
 
 void do_floppy_timer(void)
 {
-	int i;
 	unsigned char mask = 0x10;
-
-	for (i=0 ; i<4 ; i++,mask <<= 1) {
+	for (int i=0; i<4; i++, mask <<= 1) {
 		if (!(mask & current_DOR))
 			continue;
 		if (mon_timer[i]) {

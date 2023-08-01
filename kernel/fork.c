@@ -75,6 +75,7 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 {
 	struct task_struct* p;
 	struct file* f;
+    int i;
 
 	p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
@@ -131,7 +132,7 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 		return -EAGAIN;
 	}
     /////////////////////////////////////////////////////  
-	for (int i = 0; i < NR_OPEN; i++) 
+	for (i = 0; i < NR_OPEN; i++) 
         if (f = p->filp[i]) f->f_count++;
 	if (current->pwd)
 		current->pwd->i_count++;

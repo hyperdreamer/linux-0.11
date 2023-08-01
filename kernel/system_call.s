@@ -84,7 +84,7 @@ system_call:
 	movw %dx, %es
 	movl $0x17, %edx    # %fs = %0x17: ldt[2]		
 	movw %dx, %fs        
-	call sys_call_table(,%eax,4)
+	call sys_call_table(, %eax, 4)
 	pushl %eax          # return value of system call
 	movl current, %eax
 	cmpl $0, state(%eax)	# is the current process runnable?
@@ -101,8 +101,8 @@ system_call:
  *	10(%esp) - %fs
  *	14(%esp) - %es
  *	18(%esp) - %ds
- *	1C(%esp) - %eip             # the rest are used by iret
- *	20(%esp) - %cs
+ *	1C(%esp) - %eip             # the rest are used by iret and they are
+ *	20(%esp) - %cs              # pushed by the processor
  *	24(%esp) - %eflags
  *	28(%esp) - %oldesp
  *	2C(%esp) - %oldss
@@ -165,10 +165,10 @@ coprocessor_error:
 	pushl %ebx
 	pushl %eax
 	movl $0x10, %eax            # data segment: gdt[2], dlp=0
-	mov %ax, %ds                # %ds=gdt[2]
-	mov %ax, %es                # %es=gdt[2]
+	movw %ax, %ds                # %ds=gdt[2]
+	movw %ax, %es                # %es=gdt[2]
 	movl $0x17, %eax            # data segment: ldt[2], dlp=3 (user-mode)
-	mov %ax, %fs                # %fs=ldt[2]
+	movw %ax, %fs                # %fs=ldt[2]
 	pushl $ret_from_sys_call
 	jmp math_error
 
@@ -182,15 +182,15 @@ device_not_available:
 	pushl %ecx
 	pushl %ebx
 	pushl %eax
-	movl $0x10,%eax
-	mov %ax,%ds
-	mov %ax,%es
-	movl $0x17,%eax
-	mov %ax,%fs
+	movl $0x10, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movl $0x17, %eax
+	movw %ax, %fs
 	pushl $ret_from_sys_call
 	clts				# clear TS so that we can use math
-	movl %cr0,%eax
-	testl $0x4,%eax			# EM (math emulation bit)
+	movl %cr0, %eax
+	testl $0x4, %eax			# EM (math emulation bit)
 	je math_state_restore
 	pushl %ebp
 	pushl %esi
@@ -207,32 +207,32 @@ timer_interrupt:
 	pushl %ds		# save ds,es and put kernel data space
 	pushl %es		# into them. %fs is used by _system_call
 	pushl %fs
-	pushl %edx		# we save %eax,%ecx,%edx as gcc doesn't
+	pushl %edx		# we save %eax, %ecx, %edx as gcc doesn't
 	pushl %ecx		# save those across function calls. %ebx
 	pushl %ebx		# is saved as we use that in ret_sys_call
 	pushl %eax
-	movl $0x10,%eax
-	mov %ax,%ds
-	mov %ax,%es
-	movl $0x17,%eax
-	mov %ax,%fs
+	movl $0x10, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movl $0x17, %eax
+	mov %ax, %fs
 	incl jiffies
-	movb $0x20,%al		# EOI to interrupt controller #1
+	movb $0x20, %al		# EOI to interrupt controller #1
 	outb %al,$0x20
-	movl CS(%esp),%eax
-	andl $3,%eax		# %eax is CPL (0 or 3, 0=supervisor)
+	movl CS(%esp), %eax
+	andl $3, %eax		# %eax is CPL (0 or 3, 0=supervisor)
 	pushl %eax
 	call do_timer		# 'do_timer(long CPL)' does everything from
-	addl $4,%esp		# task switching to accounting ...
+	addl $4, %esp		# task switching to accounting ...
 	jmp ret_from_sys_call
 
 #.align 2
 .p2align 2
 sys_execve:
-	lea EIP(%esp),%eax
+	leal EIP(%esp), %eax
 	pushl %eax
 	call do_execve
-	addl $4,%esp
+	addl $4, %esp
 	ret
 
 #.align 2
@@ -257,21 +257,21 @@ hd_interrupt:
 	pushl %ds
 	pushl %es
 	pushl %fs
-	movl $0x10,%eax
-	mov %ax,%ds
-	mov %ax,%es
-	movl $0x17,%eax
-	mov %ax,%fs
-	movb $0x20,%al
-	outb %al,$0xA0		# EOI to interrupt controller #1
-	jmp 1f			# give port chance to breathe
+	movl $0x10, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movl $0x17, %eax
+	movw %ax, %fs
+	movb $0x20, %al
+	outb %al, $0xA0		# EOI to interrupt controller #1
+	jmp 1f			    # give port chance to breathe
 1:	jmp 1f
-1:	xorl %edx,%edx
-	xchgl do_hd,%edx
-	testl %edx,%edx
+1:	xorl %edx, %edx
+	xchgl do_hd, %edx
+	testl %edx, %edx
 	jne 1f
-	movl $unexpected_hd_interrupt,%edx
-1:	outb %al,$0x20
+	movl $unexpected_hd_interrupt, %edx
+1:	outb %al, $0x20
 	call *%edx		# "interesting" way of handling intr.
 	popl %fs
 	popl %es
@@ -288,18 +288,18 @@ floppy_interrupt:
 	pushl %ds
 	pushl %es
 	pushl %fs
-	movl $0x10,%eax
-	mov %ax,%ds
-	mov %ax,%es
-	movl $0x17,%eax
-	mov %ax,%fs
-	movb $0x20,%al
+	movl $0x10, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movl $0x17, %eax
+	movw %ax, %fs
+	movb $0x20, %al
 	outb %al,$0x20		# EOI to interrupt controller #1
-	xorl %eax,%eax
-	xchgl do_floppy,%eax
-	testl %eax,%eax
+	xorl %eax, %eax
+	xchgl do_floppy, %eax
+	testl %eax, %eax
 	jne 1f
-	movl $unexpected_floppy_interrupt,%eax
+	movl $unexpected_floppy_interrupt, %eax
 1:	call *%eax		# "interesting" way of handling intr.
 	popl %fs
 	popl %es
