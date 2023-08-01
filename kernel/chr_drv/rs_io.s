@@ -30,11 +30,15 @@ startup	= 256		/* chars left in write queue when we restart it */
  * These are the actual interrupt routines. They look where
  * the interrupt is coming from, and take appropriate action.
  */
+# Warning: To keep the stack layout well-aligned, use "pusl -- popl"
+ # instead of "push -- pop" by Henry
+
 #.align 2
 .p2align 2
 rs1_interrupt:
 	pushl $table_list+8
 	jmp rs_int
+
 #.align 2
 .p2align 2
 rs2_interrupt:
@@ -44,12 +48,12 @@ rs_int:
 	pushl %ecx
 	pushl %ebx
 	pushl %eax
-	push %es
-	push %ds		/* as this is an interrupt, we cannot */
+	pushl %es
+	pushl %ds		/* as this is an interrupt, we cannot */
 	pushl $0x10		/* know that bs is ok. Load it */
-	pop %ds
+	popl %ds
 	pushl $0x10
-	pop %es
+	popl %es
 	movl 24(%esp),%edx
 	movl (%edx),%edx
 	movl rs_addr(%edx),%edx
@@ -67,10 +71,11 @@ rep_int:
 	call jmp_table(,%eax,2)		/* NOTE! not *4, bit0 is 0 already */
 	popl %edx
 	jmp rep_int
-end:	movb $0x20,%al
+end:	
+    movb $0x20,%al
 	outb %al,$0x20		/* EOI */
-	pop %ds
-	pop %es
+	popl %ds
+	popl %es
 	popl %eax
 	popl %ebx
 	popl %ecx
