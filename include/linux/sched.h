@@ -74,7 +74,7 @@ struct tss_struct {
 	long	ds;		/* 16 high bits zero */
 	long	fs;		/* 16 high bits zero */
 	long	gs;		/* 16 high bits zero */
-	long	ldt;		/* 16 high bits zero */
+	long	ldt;		/* 16 high bits zero, selector */
 	long	trace_bitmap;	/* bits: trace 0, bitmap 16-31 */
 	struct i387_struct i387;    /* 108 bytes */
 };                              /* 104 bytes+108 bytes */
@@ -90,20 +90,20 @@ struct task_struct {
 /* various fields */
 	int exit_code;
 	unsigned long start_code, end_code, end_data, brk,start_stack;
-	long pid,father,pgrp,session,leader;
-	unsigned short uid,euid,suid;
-	unsigned short gid,egid,sgid;
+	long pid, father, pgrp, session, leader;
+	unsigned short uid, euid, suid;
+	unsigned short gid, egid, sgid;
 	long alarm;
-	long utime,stime,cutime,cstime,start_time;
+	long utime, stime, cutime, cstime, start_time;
 	unsigned short used_math;
 /* file system info */
 	int tty;                    /* -1 if no tty, so it must be signed */
 	unsigned short umask;
-	struct m_inode * pwd;
-	struct m_inode * root;
-	struct m_inode * executable;
+	struct m_inode* pwd;
+	struct m_inode* root;
+	struct m_inode* executable;
 	unsigned long close_on_exec;
-	struct file * filp[NR_OPEN];
+	struct file* filp[NR_OPEN];
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
 	struct desc_struct ldt[3];
 /* tss for this task */
@@ -280,7 +280,7 @@ extern void wake_up(struct task_struct ** p);
 // __tmp.b holds TSS(n) descriptor, __tmp.a is unimportant
 // check ljmp for task switching
 #define switch_to(n) {\
-    static struct {long a,b;} __tmp; \
+    struct {long a,b;} __tmp; \
     __asm__ ("cmpl %3, current\n\t" \
              "je 1f\n\t" \
              "movw %%dx, %1\n\t" \

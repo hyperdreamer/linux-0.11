@@ -18,8 +18,12 @@
 # Warning: If you don't wanna mess out the stack layout, explictly use 
 # "pushl -- popl" instead of "push -- pop "
                                 # stack layout:
-                                # esp+44: return address
-divide_error:
+                                # esp+60: old ss
+                                # esp+56: old esp
+                                # esp+52: old eflags
+                                # esp+48: old cs 
+                                # esp+44: old eip
+divide_error:                   # from here above are pushed by the processor
 	pushl $do_divide_error      # esp+40
 no_error_code:
 	xchgl %eax, (%esp)          # %eax <-> (%esp),  %eax = &function
@@ -101,9 +105,13 @@ irq13:
 	jmp coprocessor_error
 
                                 # stack layout:
-                                # esp+44: return address
+                                # esp+60: old ss
+                                # esp+56: old esp
+                                # esp+52: old eflags
+                                # esp+48: old cs 
+                                # esp+44: old eip
                                 # esp+40: error code
-double_fault:
+double_fault:                   # from here above are pushed by the processor
 	pushl $do_double_fault      # esp+36
 error_code:
 	xchgl %eax, 4(%esp)         # esp+36: error code <-> %eax
