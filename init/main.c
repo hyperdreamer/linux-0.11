@@ -33,10 +33,10 @@
  * won't be any messing with the stack from main(), but we define
  * some others too.
  */
-static inline _syscall0(int,fork)
-static inline _syscall0(int,pause)
+inline _syscall0(int,fork)
+inline _syscall0(int,pause)
 static inline _syscall1(int,setup,void *,BIOS)
-static inline _syscall0(int,sync)
+inline _syscall0(int,sync)
 
 static char printbuf[1024];
 
