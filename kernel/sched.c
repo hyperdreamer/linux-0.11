@@ -104,7 +104,8 @@ void math_state_restore()
  */
 void schedule(void)
 {
-	struct task_struct** p;
+	static struct task_struct** p;
+    static int next, c, i;
 /* check alarm, wake up any interruptible tasks that have got a signal */
     for (p = &LAST_TASK; p > &FIRST_TASK; --p) /* TO READ */
         if (*p) {
@@ -120,7 +121,6 @@ void schedule(void)
             }
         }
 /* this is the scheduler proper: */
-    int next, c, i;
     do {
         c = -1;                 /* why not 0, can counter be < -1 ? */
         next = 0;

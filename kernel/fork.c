@@ -38,8 +38,8 @@ void verify_area(void * addr,int size)
 
 int copy_mem(int nr, struct task_struct* p)
 {
-	unsigned long old_data_base, new_data_base, data_limit;
-	unsigned long old_code_base, new_code_base, code_limit;
+	static unsigned long old_data_base, new_data_base, data_limit;
+	static unsigned long old_code_base, new_code_base, code_limit;
 
 	code_limit = get_limit(0x0f);  	// ldt[1]
     data_limit = get_limit(0x17);  	// ldt[2]
@@ -73,9 +73,8 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
                  long ebx,long ecx,long edx, long fs, long es, long ds,
                  long eip, long cs, long eflags, long esp, long ss)
 {
-	struct task_struct* p;
-	struct file* f;
-    int i;
+	static struct task_struct* p;
+	static struct file* f;
 
 	p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
@@ -132,7 +131,7 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 		return -EAGAIN;
 	}
     /////////////////////////////////////////////////////  
-	for (i = 0; i < NR_OPEN; i++) 
+	for (int i = 0; i < NR_OPEN; i++) 
         if (f = p->filp[i]) f->f_count++;
 	if (current->pwd)
 		current->pwd->i_count++;
@@ -150,7 +149,7 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 
 int find_empty_process(void)
 {
-	int i;
+	register int i;
 /////////////////////////////////////////////////////////////////
     // find an unused id for new process
     // since ++last_pid can make last_pid overflow, it's neccessary to enusre

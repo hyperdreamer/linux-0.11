@@ -279,8 +279,8 @@ extern void wake_up(struct task_struct ** p);
  */
 // __tmp.b holds TSS(n) descriptor, __tmp.a is unimportant
 // check ljmp for task switching
-#define switch_to(n) {\
-    struct {long a,b;} __tmp; \
+#define switch_to(n) \
+    static struct {long a,b;} __tmp; \
     __asm__ ("cmpl %3, current\n\t" \
              "je 1f\n\t" \
              "movw %%dx, %1\n\t" \
@@ -296,8 +296,8 @@ extern void wake_up(struct task_struct ** p);
              "m"(__tmp.b), \
              "d"(_TSS(n)), \
              "r"((long) task[n]) \
-            ); \
-}
+             ); \
+
 
 #define PAGE_ALIGN(n) ( ((n)+0xfff) & 0xfffff000 )
 
