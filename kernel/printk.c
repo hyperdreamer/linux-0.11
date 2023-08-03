@@ -40,3 +40,17 @@ int printk(const char *fmt, ...)
             :"r" (i));
     return i;
 }
+
+#ifdef DEBUG
+#include <asm/io.h>
+void printkc(const char* fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    i=vsprintf(buf, fmt, args);
+    va_end(args)
+
+    for (int j = 0; j < i; j++) outb(buf[j], 0xe9);
+}
+#endif

@@ -11,7 +11,9 @@ int tty_write(unsigned ch,char * buf,int count);
 void * malloc(unsigned int size);
 void free_s(void * obj, int size);
 
-void printc(const char* fmt, ...); // added by Henry
+#ifdef DEBUG
+void printkc(const char* fmt, ...); // added by Henry
+#endif
 
 #define free(x) free_s((x), 0)
 
