@@ -52,6 +52,7 @@ struct sigaction {
 	void (*sa_restorer)(void);
 };
 
+// implemented in libc
 void (*signal(int _sig, void (*_func)(int)))(int); /* the return value is a function pointer! */
 int raise(int sig);
 int kill(pid_t pid, int sig);

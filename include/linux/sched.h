@@ -255,8 +255,20 @@ extern void wake_up(struct task_struct ** p);
 // _TSS(n), _LDT(n) are both selectors
 #define _TSS(n) ((((unsigned long) n)<<4) + (FIRST_TSS_ENTRY<<3))
 #define _LDT(n) ((((unsigned long) n)<<4) + (FIRST_LDT_ENTRY<<3))
-#define ltr(n) __asm__("ltr %%ax"::"a"(_TSS(n)))
-#define lldt(n) __asm__("lldt %%ax"::"a"(_LDT(n)))
+
+#define ltr(n) \ 
+    __asm__ ("ltr %%ax\n\t" \
+             : \
+             : \
+             "a" (_TSS(n)) \
+            )
+
+#define lldt(n) \
+    __asm__ ("lldt %%ax\n\t" \
+             : \
+             : \
+             "a" (_LDT(n)) \
+            )
 
 // str(n) gets the task nr of the current task and save it to n
 // str instruction stores the current task register
@@ -266,10 +278,10 @@ extern void wake_up(struct task_struct ** p);
              "subl %2, %%eax\n\t" \
              "shrl $4, %%eax" \
              : \
-             "=a"(n) \
+             "=a" (n) \
              : \
-             "a"(0), \
-             "i"(FIRST_TSS_ENTRY<<3) \
+             "a" (0), \
+             "i" (FIRST_TSS_ENTRY<<3) \
             )
 /*
  *	switch_to(n) should switch tasks to task nr n, first
@@ -292,10 +304,10 @@ extern void wake_up(struct task_struct ** p);
              "1:\n\t" \
              : \
              : \
-             "m"(__tmp.a), \
-             "m"(__tmp.b), \
-             "d"(_TSS(n)), \
-             "r"((long) task[n]) \
+             "m" (__tmp.a), \
+             "m" (__tmp.b), \
+             "d" (_TSS(n)), \
+             "r" ((long) task[n]) \
              ); \
 
 
@@ -309,10 +321,10 @@ extern void wake_up(struct task_struct ** p);
              "movb %%dh, %2\n\t" \
              : \
              : \
-             "m"(addr[2]), \
-             "m"(addr[4]), \
-             "m"(addr[7]), \
-             "r"(base) \
+             "m" (addr[2]), \
+             "m" (addr[4]), \
+             "m" (addr[7]), \
+             "r" (base) \
              : \
              "%edx" \
             )
@@ -327,9 +339,9 @@ extern void wake_up(struct task_struct ** p);
              "movb %%dl, %1\n\t" \
              : \
              : \
-             "m"(addr[0]), \
-             "m"(addr[6]), \
-             "r"(limit) \
+             "m" (addr[0]), \
+             "m" (addr[6]), \
+             "r" (limit) \
              : \
              "%edx" \
             )
@@ -345,11 +357,11 @@ extern void wake_up(struct task_struct ** p);
              "shll $16, %%edx\n\t" \
              "movw %1, %%dx\n\t" \
              : \
-             "=&d"(__base) \
+             "=&d" (__base) \
              : \
-             "m"(addr[2]), \
-             "m"(addr[4]), \
-             "m"(addr[7]) \
+             "m" (addr[2]), \
+             "m" (addr[4]), \
+             "m" (addr[7]) \
              ); \
      __base; \
     })
@@ -363,8 +375,10 @@ extern void wake_up(struct task_struct ** p);
      unsigned long __limit; \
      __asm__("lsll %1, %0\n\t" \
              "incl %0\n\t" \
-             :"=&r" (__limit) \
-             :"r" (segment) \
+             : \
+             "=&r" (__limit) \
+             : \
+             "r" (segment) \
             ); \
      __limit; \
     })

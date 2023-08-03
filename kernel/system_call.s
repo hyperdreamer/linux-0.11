@@ -93,8 +93,6 @@ system_call:
 	je reschedule
 /*
  * Stack layout before 'ret_from_system_call':
- *
-
  *	0x2C(%esp) - %oldss         # 44
  *	0x28(%esp) - %oldesp        # 40
  *	0x24(%esp) - %eflags        # 36
@@ -116,19 +114,21 @@ ret_from_sys_call:
 	cmpw $0x0f, CS(%esp)		# was old code segment supervisor ?
 	jne 3f                      # if it was supervisor, then jump
                                 # 0x17: user-mode data segment: ldt[2]
+################################################################################
+# Question: is testing OLDSS really necessary, since CS == $0x0f --- user mode?
 	cmpw $0x17, OLDSS(%esp)		# was old stack segment sumpervisor ?
 	jne 3f                      # if it was supervisor, then jump
-
+################################################################################
 	movl signal(%eax), %ebx
 	movl blocked(%eax), %ecx
 	notl %ecx
-	andl %ebx, %ecx
+	andl %ebx, %ecx             # %ecx: allowed signals
 	bsfl %ecx, %ecx             # bsf: to find the least significant set bit
 	je 3f
-	btrl %ecx, %ebx
-	movl %ebx, signal(%eax)
+	btrl %ecx, %ebx             # btr: to clear the bit
+	movl %ebx, signal(%eax)     # save left signals
 	incl %ecx
-	pushl %ecx
+	pushl %ecx                  # signal number
 	call do_signal
 	popl %eax
 3:	
@@ -141,20 +141,6 @@ ret_from_sys_call:
 	popl %ds
 	iret
 
-/*   stack layout for jumping ret_from_sys_call
- *	 0(%esp) - %eax
- *	 4(%esp) - %ebx
- *	 8(%esp) - %ecx
- *	 C(%esp) - %edx
- *	10(%esp) - %fs
- *	14(%esp) - %es
- *	18(%esp) - %ds
- *	1C(%esp) - %eip
- *	20(%esp) - %cs
- *	24(%esp) - %eflags
- *	28(%esp) - %oldesp
- *	2C(%esp) - %oldss
- */
 #.align 2
 .p2align 2
 coprocessor_error:

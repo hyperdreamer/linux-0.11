@@ -314,13 +314,13 @@ void do_wp_page(unsigned long error_code,unsigned long address)
 
 void write_verify(unsigned long address)
 {
-    unsigned long page;
-    // test page table P bit
-    if (!( (page = *((unsigned long *) ((address>>20) & 0xffc)) )&1))
-        return;
+    unsigned long page = *((unsigned long *) ((address>>20) & 0xffc));
+    // test P bit of page directory entry
+    if (!(page & 1)) return;
+
     page &= 0xfffff000; // extract page table address
     page += ((address>>10) & 0xffc); // add offset to get the page adress
-    if ((3 & *(unsigned long *) page) == 1)  /* non-writeable, present */
+    if ((3 & *(unsigned long *) page) == 1)  /* read-only, present */
         un_wp_page((unsigned long *) page);  // then need copy page
     return;
 }

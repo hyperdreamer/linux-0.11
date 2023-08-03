@@ -21,7 +21,7 @@ extern void write_verify(unsigned long address);
 
 static long last_pid = 0;     // "static" added by Henry
 
-void verify_area(void * addr,int size)
+void verify_area(void * addr, int size)
 {
 	unsigned long start;
 
@@ -29,7 +29,7 @@ void verify_area(void * addr,int size)
 	size += start & 0xfff;	
 	start &= 0xfffff000;
 	start += get_base(current->ldt[2]);
-	while (size>0) {
+	while (size > 0) {
 		size -= 4096;
 		write_verify(start);
 		start += 4096;
