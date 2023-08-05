@@ -82,15 +82,9 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 	task[nr] = p;
 	//*p = *current;    // It doesn't work! :-( by Henry
     //* NOTE! this doesn't copy the supervisor stack */
-    __asm__ ("cld\n\t"
-             "rep movsb\n\t"
-             :
-             :
-             "S"(current), 
-             "D"(p), 
-             "c"(sizeof(struct task_struct))
-            );
-	p->state = TASK_UNINTERRUPTIBLE;
+    copy_block((char*) current, (char*) p, sizeof(struct task_struct));
+
+    p->state = TASK_UNINTERRUPTIBLE;
 	p->pid = last_pid;
 	p->father = current->pid;
 	p->counter = p->priority;
