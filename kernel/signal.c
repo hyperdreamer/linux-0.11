@@ -19,7 +19,7 @@ int sys_sgetmask()
 
 int sys_ssetmask(int newmask)
 {
-	int old=current->blocked;
+	int old = current->blocked;
 
 	current->blocked = newmask & ~(1<<(SIGKILL-1));
 	return old;
@@ -58,7 +58,7 @@ int sys_signal(int signum, long handler, long restorer)
 	tmp.sa_restorer = (void (*)(void)) restorer;
 	handler = (long) current->sigaction[signum-1].sa_handler;
 	current->sigaction[signum-1] = tmp;
-
+    
 	return handler;
 }
 
@@ -82,7 +82,7 @@ int sys_sigaction(int signum, const struct sigaction* action,
 	if (oldaction) {
         verify_area((char*) oldaction, size);
         copy_block_ds2fs((const char*) &tmp, (char*) oldaction, size);
-		//save_old((char *) &tmp,(char *) oldaction);
+	    //save_old((char *) &tmp,(char *) oldaction);
     }
 
 	if (current->sigaction[signum-1].sa_flags & SA_NOMASK)
