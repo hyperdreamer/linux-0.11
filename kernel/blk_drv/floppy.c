@@ -405,12 +405,12 @@ static void floppy_on_interrupt(void)
 /* We cannot do a floppy-select, as that might sleep. We just force it */
 	selected = 1;
 	if (current_drive != (current_DOR & 3)) {
-		current_DOR &= 0xFC;
-		current_DOR |= current_drive;
-		outb(current_DOR,FD_DOR);
-		add_timer(2,&transfer);
-	} else
-		transfer();
+        current_DOR &= 0xFC;
+        current_DOR |= current_drive;
+        outb(current_DOR, FD_DOR);
+        add_timer(2, &transfer);
+    } else
+        transfer();
 }
 
 void do_fd_request(void)

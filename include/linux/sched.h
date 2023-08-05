@@ -278,7 +278,7 @@ extern void wake_up(struct task_struct ** p);
              : \
              "=a" (n) \
              : \
-             "a" (0), \
+             "0" (0), \
              "i" (FIRST_TSS_ENTRY<<3) \
             )
 /*

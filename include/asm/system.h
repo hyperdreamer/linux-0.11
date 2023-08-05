@@ -25,11 +25,11 @@
              :"%eax" \
             )
 
-#define sti() __asm__ ("sti"::)
-#define cli() __asm__ ("cli"::)
-#define nop() __asm__ ("nop"::)
+#define sti() __asm__ ("sti\n\t")
+#define cli() __asm__ ("cli\n\t")
+#define nop() __asm__ ("nop\n\t")
 
-#define iret() __asm__ ("iret"::)
+#define iret() __asm__ ("iret\n\t")
 
 /*
  * set idt descriptor
@@ -103,7 +103,7 @@
              : \
              : \
              "r"(addr), \
-             "m"(n[0]), \ 
+             "m"(n[0]), \
              "m"(n[2]), \
              "m"(n[4]), \
              "m"(n[5]), \

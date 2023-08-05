@@ -41,6 +41,7 @@ void show_stat(void)
 			show_task(i,task[i]);
 }
 
+// LATCH := 1193180 / 100: the timer frequency is 100 Hz
 #define LATCH (1193180/HZ)
 
 /* extern void mem_use(void); */
@@ -270,35 +271,33 @@ static struct timer_list {
 
 void add_timer(long jiffies, void (*fn)(void))
 {
-	struct timer_list * p;
+    if (!fn) return;
 
-	if (!fn)
-		return;
-	cli();
-	if (jiffies <= 0)
-		(fn)();
-	else {
-		for (p = timer_list ; p < timer_list + TIME_REQUESTS ; p++)
-			if (!p->fn)
-				break;
-		if (p >= timer_list + TIME_REQUESTS)
-			panic("No more time requests free");
-		p->fn = fn;
-		p->jiffies = jiffies;
-		p->next = next_timer;
-		next_timer = p;
-		while (p->next && p->next->jiffies < p->jiffies) {
-			p->jiffies -= p->next->jiffies;
-			fn = p->fn;
-			p->fn = p->next->fn;
-			p->next->fn = fn;
-			jiffies = p->jiffies;
-			p->jiffies = p->next->jiffies;
-			p->next->jiffies = jiffies;
-			p = p->next;
-		}
-	}
-	sti();
+    cli();
+    if (jiffies <= 0) (fn)();
+    else {
+        struct timer_list* p;
+        for (p = timer_list; p < timer_list + TIME_REQUESTS; ++p)
+            if (!p->fn) break;
+
+        if (p >= timer_list + TIME_REQUESTS)
+            panic("No more time requests free");
+
+        p->fn = fn;
+        p->jiffies = jiffies;
+        p->next = next_timer;
+        if (next_timer->jiffies >= jiffies) next_timer = p;
+        struct timer_list* tmp;
+        while ((tmp = p->next) && tmp->jiffies < p->jiffies) {
+            p->next = tmp->next;
+            tmp->next = p;
+            p->jiffies -= tmp->jiffies;
+        }
+        if (tmp && tmp->jiffies >= p->jiffies) 
+            tmp->jiffies -= p->jiffies; 
+        
+    }
+    sti();
 }
 
 void do_timer(long cpl)
@@ -306,31 +305,27 @@ void do_timer(long cpl)
 	extern int beepcount;
 	extern void sysbeepstop(void);
 
-	if (beepcount)
-		if (!--beepcount)
-			sysbeepstop();
+	if (beepcount && !--beepcount) sysbeepstop();
 
-	if (cpl)
-		current->utime++;       /* cpl=3 */
-	else
-		current->stime++;       /* cpl=0 */
+    cpl ? current->utime++ : current->stime++;
 
-	if (next_timer) {
-		next_timer->jiffies--;
-		while (next_timer && next_timer->jiffies <= 0) {
-			void (*fn)(void);
-			
-			fn = next_timer->fn;
-			next_timer->fn = NULL;
-			next_timer = next_timer->next;
-			(fn)();
-		}
-	}
-	if (current_DOR & 0xf0)
-		do_floppy_timer();
-	if ((--current->counter)>0) return;
-	current->counter=0;
-	if (!cpl) return;
+    if (next_timer) {
+        next_timer->jiffies--;
+        while (next_timer && next_timer->jiffies <= 0) {
+            void (*fn)(void);
+            fn = next_timer->fn;
+            next_timer->fn = NULL;
+            next_timer = next_timer->next;
+            (fn)();
+        }
+    }
+	if (current_DOR & 0xf0) do_floppy_timer();
+	if (--current->counter > 0) return; // process still has time, no
+                                        // scheduling
+	current->counter = 0;   // it is important, a process with counter 0
+                            // can do_timer() and get -1
+	if (!cpl) return;       // kernel mode, no scheduling
+
 	schedule();
 }
 
@@ -398,18 +393,29 @@ void sched_init(void)
 		p->a = p->b = 0; // ldti
 		p++;
 	}
-/* Clear NT(nested task), so that we won't have troubles with that later on */
+    /* Clear NT(nested task), so that we won't have troubles with that later on */
     // pay attention to the skill to modify the eflags :-)
-	__asm__("pushfl ; andl $0xffffbfff,(%esp) ; popfl");
+	__asm__ ("pushfl\n\t"
+             "andl $0xffffbfff, (%esp)\n\t" 
+             "popfl\n\t");
 	ltr(0);  // load task register for task0
 	lldt(0); /* load ldt for task0  */
+
     // initiate i8253, the timer_interrupt
-    // 00,11,011,0 
+    // 0x36 == 00,11,011,0 
+    // 0-bit == 0: 16-bit binary
+    // 1~3-bit == 011: square wave generator
+    // 4~5-bit == 11: lobyte first, then hibyte
+    // 6~7-bit == 00: channel 0: IRQ_0, the timer: send data to 0x40
+    // Check: https://wiki.osdev.org/Programmable_Interval_Timer
     outb_p(0x36, 0x43);                     /* binary, mode 3, LSB/MSB, counter 0 */
+    // Send LATCH to 0x40: the timer frequency 100 Hz
 	outb_p(LATCH & 0xff, 0x40);             /* LSB */
 	outb(LATCH >> 8, 0x40);                 /* MSB */
+    // set timer interrupt handler and enable IRQ_0
 	set_intr_gate(0x20, &timer_interrupt);
 	outb(inb_p(0x21) & ~0x01, 0x21);        /* enable IRQ_0 */
+
 	set_system_gate(0x80, &system_call);
 }
  
