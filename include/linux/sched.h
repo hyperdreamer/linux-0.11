@@ -259,15 +259,13 @@ extern void wake_up(struct task_struct ** p);
 #define ltr(n) \
     __asm__ ("ltr %%ax\n\t" \
              : \
-             : \
-             "a" (_TSS(n)) \
+             : "a" (_TSS(n)) \
             )
 
 #define lldt(n) \
     __asm__ ("lldt %%ax\n\t" \
              : \
-             : \
-             "a" (_LDT(n)) \
+             : "a" (_LDT(n)) \
             )
 
 // str(n) gets the task nr of the current task and save it to n
@@ -308,7 +306,7 @@ extern void wake_up(struct task_struct ** p);
              "m" (__tmp.b), \
              "d" (_TSS(n)), \
              "r" ((long) task[n]) \
-             ); \
+            ); \
 
 
 #define PAGE_ALIGN(n) ( ((n)+0xfff) & 0xfffff000 )
@@ -362,7 +360,7 @@ extern void wake_up(struct task_struct ** p);
              "m" (addr[2]), \
              "m" (addr[4]), \
              "m" (addr[7]) \
-             ); \
+            ); \
      __base; \
     })
 
@@ -375,10 +373,8 @@ extern void wake_up(struct task_struct ** p);
      unsigned long __limit; \
      __asm__("lsll %1, %0\n\t" \
              "incl %0\n\t" \
-             : \
-             "=&r" (__limit) \
-             : \
-             "r" (segment) \
+             : "=&r" (__limit) \
+             : "r" (segment) \
             ); \
      __limit; \
     })
