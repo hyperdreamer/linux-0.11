@@ -12,38 +12,34 @@ static inline void copy_block(const char* from, char* to, size_t size)
 
 static inline void copy_block_fs2es(const char* from, char* to, size_t size)
 {
-    __asm__ __volatile__("pushw %%ds\n\t"
-                         "movw %%fs, %%ax\n\t"
-                         "movw %%ax, %%ds\n\t" // set %ds := %fs
-                         "cld\n\t"
-                         "rep movsb\n\t"
-                         "popw %%ds\n\t"
-                         :
-                         :
-                         "S" (from), 
-                         "D" (to),              // check system_call: %ds == %es
-                         "c" (size)
-                         :
-                         "%eax"
-                        );
+    __asm__ ("pushw %%ds\n\t"
+             "pushw %%fs\n\nt"
+             "popw %%ds\n\t"        // set %ds := %fs
+             "cld\n\t"
+             "rep movsb\n\t"
+             "popw %%ds\n\t"
+             :
+             :
+             "S" (from), 
+             "D" (to),              // check system_call: %ds == %es
+             "c" (size)
+            );
 }
 
 static inline void copy_block_ds2fs(const char* from, char* to, size_t size)
 {
-    __asm__ __volatile__("pushw %%es\n\t"
-                         "movw %%fs, %%ax\n\t"
-                         "movw %%ax, %%es\n\t" // set %es := %fs
-                         "cld\n\t"
-                         "rep movsb\n\t"
-                         "popw %%es\n\t"
-                         :
-                         :
-                         "S" (from), 
-                         "D" (to), 
-                         "c" (size)
-                         :
-                         "%eax"
-                        );
+    __asm__ ("pushw %%es\n\t"
+             "pushw %%fs\n\t"
+             "popw %%es\n\t"        // set %es := %fs
+             "cld\n\t"
+             "rep movsb\n\t"
+             "popw %%es\n\t"
+             :
+             :
+             "S" (from), 
+             "D" (to), 
+             "c" (size)
+            );
 }
 
 static inline unsigned char get_fs_byte(const char* addr)
