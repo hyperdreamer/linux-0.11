@@ -14,10 +14,8 @@
     ({ \
      unsigned char _v; \
     __asm__ ("inb %%dx, %%al\n\t" \
-             : \
-             "=&a"(_v) \
-             : \
-             "d"(port) \
+             : "=&a" (_v) \
+             : "d" (port) \
             ); \
      _v; \
     })
@@ -30,8 +28,8 @@
                          "1:\n\t" \
                          : \
                          : \
-                         "a"(value), \
-                         "d"(port) \
+                         "a" (value), \
+                         "d" (port) \
                         )
 
 #define inb_p(port) \
@@ -42,10 +40,8 @@
                          "1:\n\t" \
                          "jmp 1f\n" \
                          "1:\n\t" \
-                         : \
-                         "=&a"(_v) \
-                         : \
-                         "d"(port) \
+                         : "=&a" (_v) \
+                         : "d" (port) \
                         ); \
      _v; \
     })
