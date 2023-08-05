@@ -75,7 +75,7 @@ int sys_sigaction(int signum, const struct sigaction* action,
 	get_new((char*) action,
             (char*) (signum-1 + current->sigaction));
     */
-    copy_block_fs2ds((const char*) action,
+    copy_block_fs2es((const char*) action,
                      (char*) (signum-1 + current->sigaction),
                      size);
 

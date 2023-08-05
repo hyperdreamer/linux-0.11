@@ -256,7 +256,7 @@ extern void wake_up(struct task_struct ** p);
 #define _TSS(n) ((((unsigned long) n)<<4) + (FIRST_TSS_ENTRY<<3))
 #define _LDT(n) ((((unsigned long) n)<<4) + (FIRST_LDT_ENTRY<<3))
 
-#define ltr(n) \ 
+#define ltr(n) \
     __asm__ ("ltr %%ax\n\t" \
              : \
              : \

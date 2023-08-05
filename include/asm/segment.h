@@ -4,28 +4,24 @@ static inline void copy_block(const char* from, char* to, size_t size)
              "rep movsb\n\t"
              :
              :
-             "S" (from), 
+             "S" (from),    // check system_call: %ds == %es
              "D" (to), 
              "c" (size)
             );
 }
 
-static inline void copy_block_fs2ds(const char* from, char* to, size_t size)
+static inline void copy_block_fs2es(const char* from, char* to, size_t size)
 {
-    __asm__ __volatile__("testl %%ecx, %%ecx\n\t"
-                         "jz 2f\n"
-                         "1:\n\t"
-                         "movb %%fs:(%%esi), %%al\n\t"
-                         "movb %%al, (%%edi)\n\t"
-                         "incl %%esi\n\t"
-                         "incl %%edi\n\t"
-                         "decl %%ecx\n\t"
-                         "jnz 1b\n"
-                         "2:\n\t"
+    __asm__ __volatile__("pushw %%ds\n\t"
+                         "movw %%fs, %%ax\n\t"
+                         "movw %%ax, %%ds\n\t" // set %ds := %fs
+                         "cld\n\t"
+                         "rep movsb\n\t"
+                         "popw %%ds\n\t"
                          :
                          :
                          "S" (from), 
-                         "D" (to), 
+                         "D" (to),              // check system_call: %ds == %es
                          "c" (size)
                          :
                          "%eax"
@@ -34,16 +30,12 @@ static inline void copy_block_fs2ds(const char* from, char* to, size_t size)
 
 static inline void copy_block_ds2fs(const char* from, char* to, size_t size)
 {
-    __asm__ __volatile__("testl %%ecx, %%ecx\n\t"
-                         "jz 2f\n"
-                         "1:\n\t"
-                         "movb (%%esi), %%al\n\t"
-                         "movb %%al, %%fs:(%%edi)\n\t"
-                         "incl %%esi\n\t"
-                         "incl %%edi\n\t"
-                         "decl %%ecx\n\t"
-                         "jnz 1b\n"
-                         "2:\n\t"
+    __asm__ __volatile__("pushw %%es\n\t"
+                         "movw %%fs, %%ax\n\t"
+                         "movw %%ax, %%es\n\t" // set %es := %fs
+                         "cld\n\t"
+                         "rep movsb\n\t"
+                         "popw %%es\n\t"
                          :
                          :
                          "S" (from), 

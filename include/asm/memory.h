@@ -5,9 +5,21 @@
  *  user data space). This is NOT a bug, as any user program that changes
  *  es deserves to die if it isn't careful.
  */
-#define memcpy(dest,src,n) ({ \
-void * _res = dest; \
-__asm__ ("cld;rep;movsb" \
-	::"D" ((long)(_res)),"S" ((long)(src)),"c" ((long) (n))); \
-_res; \
-})
+#ifndef _SIZE_T
+#define _SIZE_T
+typedef unsigned int size_t;
+#endif
+
+#define memcpy(dest, src, n) \
+    ({ \
+     void * _res = dest; \
+     __asm__("cld\n\t" \
+             "rep movsb\n\t" \
+             : \
+             : \
+             "D" ((unsigned long) _res), \
+             "S" ((unsigned long) (src)), \
+             "c" ((size_t) (n)) \
+            ); \
+     _res; \
+    })
