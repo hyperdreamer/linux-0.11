@@ -26,6 +26,7 @@ int sys_ssetmask(int newmask)
 }
 
 /* "static" means it can only be accessed in the current file */
+/*
 static inline void save_old(char* from, char* to)
 {
 	verify_area(to, sizeof(struct sigaction));
@@ -35,6 +36,7 @@ static inline void save_old(char* from, char* to)
 		to++;
 	}
 }
+*/
 
 /*
 static inline void get_new(char* from, char* to)
@@ -47,7 +49,7 @@ static inline void get_new(char* from, char* to)
 
 int sys_signal(int signum, long handler, long restorer)
 {
-	struct sigaction tmp;
+	static struct sigaction tmp;
 
 	if (signum<1 || signum>32 || signum==SIGKILL)
 		return -1;
@@ -63,7 +65,8 @@ int sys_signal(int signum, long handler, long restorer)
 int sys_sigaction(int signum, const struct sigaction* action,
                   struct sigaction* oldaction)
 {
-	struct sigaction tmp;
+	static struct sigaction tmp;
+    static size_t size = sizeof(struct sigaction);
 
 	if (signum<1 || signum>32 || signum==SIGKILL)
 		return -1;
@@ -75,10 +78,13 @@ int sys_sigaction(int signum, const struct sigaction* action,
     */
     copy_fs_block((const char*) action,
                   (char*) (signum-1 + current->sigaction),
-                  sizeof(struct sigaction));
+                  size);
 
-	if (oldaction)
-		save_old((char *) &tmp,(char *) oldaction);
+	if (oldaction) {
+        verify_area((char*) oldaction, size);
+        copy_fs_block((const char*) &tmp, (char*) oldaction, size);
+		//save_old((char *) &tmp,(char *) oldaction);
+    }
 	if (current->sigaction[signum-1].sa_flags & SA_NOMASK)
 		current->sigaction[signum-1].sa_mask = 0;
 	else
