@@ -21,10 +21,10 @@ extern int vsprintf(char * buf, const char * fmt, va_list args);
 int printk(const char *fmt, ...)
 {
     va_list args;               /* va_list is the synoymn of char* */
-    int i;
+    int len;
 
     va_start(args, fmt);
-    i=vsprintf(buf,fmt,args); // return the length of buf
+    len = vsprintf(buf, fmt, args); // return the length of buf
     va_end(args);
     __asm__("pushw %%fs\n\t"
             "pushw %%ds\n\t"
@@ -33,24 +33,27 @@ int printk(const char *fmt, ...)
             "pushl $buf\n\t"
             "pushl $0\n\t"  // immediate value $0 not %0 :-)
             "call tty_write\n\t"   // :tag tty_write, TO_READ
-            "addl $8,%%esp\n\t"
+            "addl $8, %%esp\n\t"
             "popl %0\n\t"
             "popw %%fs"
             :
-            :"r" (i));
-    return i;
+            : "r" (len));
+    return len;
 }
 
 #ifdef DEBUG
 #include <asm/io.h>
-void printkc(const char* fmt, ...)
+int printkc(const char* fmt, ...)
 {
     va_list args;
+    int len;
 
     va_start(args, fmt);
-    i=vsprintf(buf, fmt, args);
+    len = vsprintf(buf, fmt, args);
     va_end(args)
 
-    for (int j = 0; j < i; j++) outb(buf[j], 0xe9);
+    for (int j = 0; j < len; j++) outb(buf[j], 0xe9);
+
+    return len;
 }
 #endif

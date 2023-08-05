@@ -29,7 +29,7 @@ void free_s(void * obj, int size);
 #endif
 
 #ifdef DEBUG
-void printkc(const char* fmt, ...); 
+int printkc(const char* fmt, ...); 
 // bochs's magic break
 #define breakpoint() \
     __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
@@ -40,6 +40,10 @@ void printkc(const char* fmt, ...);
 
 #else
 #define breakpoint() { /*nothing :-)*/; }
+inline int printkc(const char* fmt, ...) 
+{ 
+    return 0;
+}
 #endif
 ////////////////////////////////////////////////////////////
 
