@@ -2,7 +2,7 @@
 An old Kernel that can be compiled on modern machines 
 
 # For Debugging
-Check the symbolic link "signal.h ---> include/signal.h". I added a debugger switch in it by defining some macros. 
+Check the symbolic link "kernel.h ---> include/linux/kernel.h". I added a debugger switch in it by defining some macros. 
 
 I know it is urgly :-(, but it is handy and really works :-)! 
 
