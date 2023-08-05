@@ -700,10 +700,24 @@ static void sysbeep(void)
 	/* enable counter 2 */
 	outb_p(inb_p(0x61)|3, 0x61);
 	/* set command for counter 2, 2 byte write */
+    /***********************************************************
+     * 0xB6 == 10_11_011_0
+     * 0-bit == 0: 16-bit binary
+     * 1~3-bit == 011: square wave generator
+     * 4~5-bit == 11: lobyte first, then hibyte
+     * 6~7-bit == 10: chanel 2, speaker: send data to 0x42
+     * Check: https://wiki.osdev.org/Programmable_Interval_Timer
+     **********************************************************/
 	outb_p(0xB6, 0x43);
 	/* send 0x637 for 750 HZ */
+    // 0x637 == 1591
+    // frequency == PIT_CLOCK_FREQUENCY / 0x637
+    //           == 1193180 Hz / 1591
+    //           == 749.956 Hz
 	outb_p(0x37, 0x42);
 	outb(0x06, 0x42);
-	/* 1/8 second */
+    // LATCH := 1193180 / 100: the timer frequency is 100 Hz
+    // beapcount := 100 / 8 = 12.5 timer periods
+    // so the total time is 12.5 * 1 / 100 sec == 1/8 sec
 	beepcount = HZ/8;	
 }
