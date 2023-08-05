@@ -80,7 +80,7 @@ int sys_sigaction(int signum, const struct sigaction* action,
                      size);
 
 	if (oldaction) {
-        verify_area((char*) oldaction, size);
+        verify_area((char*) oldaction, size);   // verfiy %fs space
         copy_block_ds2fs((const char*) &tmp, (char*) oldaction, size);
 	    //save_old((char *) &tmp,(char *) oldaction);
     }
