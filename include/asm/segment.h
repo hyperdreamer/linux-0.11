@@ -1,8 +1,44 @@
-static inline unsigned char get_fs_byte(const char * addr)
+static inline void copy_block(const char* from, char* to, size_t size)
+{
+    __asm__ ("cld\n\t"
+             "rep movsb\n\t"
+             :
+             :
+             "S" (from), 
+             "D" (to), 
+             "c" (size)
+            );
+}
+
+static inline void copy_fs_block(const char* from, char* to, size_t size)
+{
+    __asm__ __volatile__("pushw %%ds\n\t"
+                         "pushw %%fs\n\t"
+                         "movw %%fs, %%ax\n\t"
+                         "movw %%ax, %%ds\n\t"
+                         "cld\n\t"
+                         "rep movsb\n\t"
+                         "popw %%fs\n\t"
+                         "popw %%ds\n\t"
+                         :
+                         :
+                         "S" (from), 
+                         "D" (to), 
+                         "c" (size)
+                         :
+                         "%eax"
+                        );
+}
+
+static inline unsigned char get_fs_byte(const char* addr)
 {
 	unsigned char _v;
 
-	__asm__ ("movb %%fs:%1,%0":"=r" (_v):"m" (*addr));
+	__asm__ ("movb %%fs:%1, %0\n\t"
+             : "=r" (_v)
+             : "m" (*addr)
+            );
+
 	return _v;
 }
 
