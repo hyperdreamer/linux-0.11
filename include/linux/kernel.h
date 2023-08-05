@@ -11,10 +11,6 @@ int tty_write(unsigned ch,char * buf,int count);
 void * malloc(unsigned int size);
 void free_s(void * obj, int size);
 
-#ifdef DEBUG
-void printkc(const char* fmt, ...); // added by Henry
-#endif
-
 #define free(x) free_s((x), 0)
 
 /*
@@ -26,5 +22,25 @@ void printkc(const char* fmt, ...); // added by Henry
  */
 #define suser() (current->euid == 0)
 
+////////////////////////////////////////////////////////////
+// a debugger switcher. Urgely but it works! by Henry :-)
+#ifndef DEBUG
+#define DEBUG
 #endif
 
+#ifdef DEBUG
+void printkc(const char* fmt, ...); 
+// bochs's magic break
+#define breakpoint() \
+    __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
+                         : \
+                         : \
+                         : "%ebx" \
+                        )
+
+#else
+#define breakpoint() { /*nothing :-)*/; }
+#endif
+////////////////////////////////////////////////////////////
+
+#endif

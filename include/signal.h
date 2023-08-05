@@ -66,23 +66,4 @@ int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
 int sigsuspend(sigset_t *sigmask);
 int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 
-////////////////////////////////////////////////////////////
-// a debugger switcher. Urgely but it works! by Henry :-)
-#ifndef DEBUG
-#define DEBUG
-#endif
-
-#ifdef DEBUG
-// bochs's magic break
-#define breakpoint() \
-    __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
-                         : \
-                         : \
-                         : "%ebx" \
-                        )
-#else
-#define breakpoint() { /*nothing :-)*/; }
-#endif
-////////////////////////////////////////////////////////////
-
 #endif /* _SIGNAL_H */
