@@ -46,19 +46,19 @@ static inline void get_new(char* from, char* to)
 }
 */
 
-
 int sys_signal(int signum, long handler, long restorer)
 {
 	static struct sigaction tmp;
 
-	if (signum<1 || signum>32 || signum==SIGKILL)
-		return -1;
+	if (signum<1 || signum>32 || signum==SIGKILL) return -1;
+
 	tmp.sa_handler = (void (*)(int)) handler;
 	tmp.sa_mask = 0;
 	tmp.sa_flags = SA_ONESHOT | SA_NOMASK;
 	tmp.sa_restorer = (void (*)(void)) restorer;
 	handler = (long) current->sigaction[signum-1].sa_handler;
 	current->sigaction[signum-1] = tmp;
+
 	return handler;
 }
 
@@ -68,27 +68,28 @@ int sys_sigaction(int signum, const struct sigaction* action,
 	static struct sigaction tmp;
     static size_t size = sizeof(struct sigaction);
 
-	if (signum<1 || signum>32 || signum==SIGKILL)
-		return -1;
+	if (signum<1 || signum>32 || signum==SIGKILL) return -1;
     
 	tmp = current->sigaction[signum-1];
     /*
 	get_new((char*) action,
             (char*) (signum-1 + current->sigaction));
     */
-    copy_fs_block((const char*) action,
-                  (char*) (signum-1 + current->sigaction),
-                  size);
+    copy_block_fs2ds((const char*) action,
+                     (char*) (signum-1 + current->sigaction),
+                     size);
 
 	if (oldaction) {
         verify_area((char*) oldaction, size);
-        copy_fs_block((const char*) &tmp, (char*) oldaction, size);
+        copy_block_ds2fs((const char*) &tmp, (char*) oldaction, size);
 		//save_old((char *) &tmp,(char *) oldaction);
     }
+
 	if (current->sigaction[signum-1].sa_flags & SA_NOMASK)
 		current->sigaction[signum-1].sa_mask = 0;
 	else
 		current->sigaction[signum-1].sa_mask |= (1<<(signum-1));
+
 	return 0;
 }
 
@@ -106,10 +107,9 @@ void do_signal(long signr, long eax, long ebx, long ecx, long edx,
 	if (sa_handler == 1) return;    // SIG_IGN
 
 	if (!sa_handler) {  // SIG_DEL
-		if (signr == SIGCHLD)
-			return;
-		else
-			do_exit(1<<(signr-1));
+        if (signr == SIGCHLD) return;
+
+        do_exit(1<<(signr-1));
 	}
 
 	if (sa->sa_flags & SA_ONESHOT) sa->sa_handler = NULL;

@@ -10,16 +10,40 @@ static inline void copy_block(const char* from, char* to, size_t size)
             );
 }
 
-static inline void copy_fs_block(const char* from, char* to, size_t size)
+static inline void copy_block_fs2ds(const char* from, char* to, size_t size)
 {
-    __asm__ __volatile__("pushw %%ds\n\t"
-                         "pushw %%fs\n\t"
-                         "movw %%fs, %%ax\n\t"
-                         "movw %%ax, %%ds\n\t"
-                         "cld\n\t"
-                         "rep movsb\n\t"
-                         "popw %%fs\n\t"
-                         "popw %%ds\n\t"
+    __asm__ __volatile__("testl %%ecx, %%ecx\n\t"
+                         "jz 2f\n"
+                         "1:\n\t"
+                         "movb %%fs:(%%esi), %%al\n\t"
+                         "movb %%al, (%%edi)\n\t"
+                         "incl %%esi\n\t"
+                         "incl %%edi\n\t"
+                         "decl %%ecx\n\t"
+                         "jnz 1b\n"
+                         "2:\n\t"
+                         :
+                         :
+                         "S" (from), 
+                         "D" (to), 
+                         "c" (size)
+                         :
+                         "%eax"
+                        );
+}
+
+static inline void copy_block_ds2fs(const char* from, char* to, size_t size)
+{
+    __asm__ __volatile__("testl %%ecx, %%ecx\n\t"
+                         "jz 2f\n"
+                         "1:\n\t"
+                         "movb (%%esi), %%al\n\t"
+                         "movb %%al, %%fs:(%%edi)\n\t"
+                         "incl %%esi\n\t"
+                         "incl %%edi\n\t"
+                         "decl %%ecx\n\t"
+                         "jnz 1b\n"
+                         "2:\n\t"
                          :
                          :
                          "S" (from), 
@@ -60,7 +84,12 @@ static inline unsigned long get_fs_long(const unsigned long *addr)
 
 static inline void put_fs_byte(char val,char *addr)
 {
-    __asm__ ("movb %0,%%fs:%1"::"r" (val),"m" (*addr));
+    __asm__ ("movb %0, %%fs:%1\n\t"
+             :
+             :
+             "r" (val),
+             "m" (*addr)
+            );
 }
 
 static inline void put_fs_word(short val,short * addr)
