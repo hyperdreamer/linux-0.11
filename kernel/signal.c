@@ -26,25 +26,24 @@ int sys_ssetmask(int newmask)
 }
 
 /* "static" means it can only be accessed in the current file */
-static inline void save_old(char * from,char * to)
+static inline void save_old(char* from, char* to)
 {
-	int i;
-
 	verify_area(to, sizeof(struct sigaction));
-	for (i=0 ; i< sizeof(struct sigaction) ; i++) {
+	for (int i = 0; i < sizeof(struct sigaction); i++) {
 		put_fs_byte(*from,to);
 		from++;
 		to++;
 	}
 }
 
-static inline void get_new(char * from,char * to)
+/*
+static inline void get_new(char* from, char* to)
 {
-	int i;
-
-	for (i=0 ; i< sizeof(struct sigaction) ; i++)
-		*(to++) = get_fs_byte(from++);
+    for (int i = 0; i < sizeof(struct sigaction); i++)
+        *(to++) = get_fs_byte(from++);
 }
+*/
+
 
 int sys_signal(int signum, long handler, long restorer)
 {
@@ -61,16 +60,23 @@ int sys_signal(int signum, long handler, long restorer)
 	return handler;
 }
 
-int sys_sigaction(int signum, const struct sigaction * action,
-	struct sigaction * oldaction)
+int sys_sigaction(int signum, const struct sigaction* action,
+                  struct sigaction* oldaction)
 {
 	struct sigaction tmp;
 
 	if (signum<1 || signum>32 || signum==SIGKILL)
 		return -1;
+    
 	tmp = current->sigaction[signum-1];
-	get_new((char *) action,
-		(char *) (signum-1+current->sigaction));
+    /*
+	get_new((char*) action,
+            (char*) (signum-1 + current->sigaction));
+    */
+    copy_fs_block((const char*) action,
+                  (char*) (signum-1 + current->sigaction),
+                  sizeof(struct sigaction));
+
 	if (oldaction)
 		save_old((char *) &tmp,(char *) oldaction);
 	if (current->sigaction[signum-1].sa_flags & SA_NOMASK)
