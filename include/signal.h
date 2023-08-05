@@ -75,7 +75,11 @@ int sigaction(int sig, struct sigaction *act, struct sigaction *oldact);
 #ifdef DEBUG
 // bochs's magic break
 #define breakpoint() \
-    __asm__ __volatile__("xchgw %%bx, %%bx\n\t":::"%ebx")
+    __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
+                         : \
+                         : \
+                         : "%ebx" \
+                        )
 #else
 #define breakpoint() { /*nothing :-)*/; }
 #endif
