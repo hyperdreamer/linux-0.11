@@ -115,6 +115,7 @@ void schedule(void)
                 (*p)->signal |= (1<<(SIGALRM-1));
                 (*p)->alarm = 0;
             }
+            // p has signals & has not recieved SIGKILL & SIGSTOP
             if (((*p)->signal & ~(_BLOCKABLE & (*p)->blocked)) 
                 && (*p)->state == TASK_INTERRUPTIBLE)
             {
