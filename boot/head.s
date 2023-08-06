@@ -25,7 +25,7 @@ startup_32:
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
-    lss stack_start, %esp   # _stack_start is defined in kernel/sched.c line69
+    lss stack_start, %esp   # stack_start is defined in kernel/sched.c 
                             # :tag stack_start to check it. the stack is 4KB
 
     call setup_idt
@@ -39,7 +39,7 @@ startup_32:
     lss stack_start, %esp
     xorl %eax, %eax
 1:	
-    incl %eax		# check that A20 really IS enabled
+    incl %eax		    # check that A20 really IS enabled
     movl %eax,0x000000	# loop forever if it isn't
     cmpl %eax,0x100000
     je 1b
@@ -50,10 +50,10 @@ startup_32:
  * 486 users probably want to set the NE (#5) bit also, so as to use
  * int 16 for math errors.
  */
-	movl %cr0, %eax		# check math chip
+	movl %cr0, %eax		    # check math chip
 	andl $0x80000011, %eax	# Save PG,PE,ET
 /* "orl $0x10020,%eax" here for 486 might be good */
-	orl $2, %eax		# set MP
+	orl $2, %eax		    # set MP
 	movl %eax, %cr0
     call check_x87
     jmp after_page_tables
