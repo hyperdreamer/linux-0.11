@@ -38,8 +38,8 @@ void verify_area(void * addr, int size)
 
 int copy_mem(int nr, struct task_struct* p)
 {
-	static unsigned long old_data_base, new_data_base, data_limit;
-	static unsigned long old_code_base, new_code_base, code_limit;
+	unsigned long old_data_base, new_data_base, data_limit;
+	unsigned long old_code_base, new_code_base, code_limit;
 
 	code_limit = get_limit(0x0f);  	// ldt[1]
     data_limit = get_limit(0x17);  	// ldt[2]
@@ -73,8 +73,8 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
                  long ebx,long ecx,long edx, long fs, long es, long ds,
                  long eip, long cs, long eflags, long esp, long ss)
 {
-	static struct task_struct* p;
-	static struct file* f;
+	struct task_struct* p;
+	struct file* f;
 
 	p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
@@ -129,14 +129,12 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 		return -EAGAIN;
 	}
     /////////////////////////////////////////////////////  
-	for (int i = 0; i < NR_OPEN; i++) 
-        if (f = p->filp[i]) f->f_count++;
-	if (current->pwd)
-		current->pwd->i_count++;
-	if (current->root)
-		current->root->i_count++;
-	if (current->executable)
-		current->executable->i_count++;
+	for (int i = 0; i < NR_OPEN; ++i) 
+        if (f = p->filp[i]) ++(f->f_count);
+
+	if (current->pwd) ++(current->pwd->i_count);
+	if (current->root) ++(current->root->i_count);
+	if (current->executable) ++(current->executable->i_count);
     /////////////////////////////////////////////////////
 	set_tss_desc(nr, &(p->tss));
 	set_ldt_desc(nr, &(p->ldt));
