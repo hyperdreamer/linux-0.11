@@ -105,8 +105,7 @@ void math_state_restore()
  */
 void schedule(void)
 {
-	static struct task_struct** p;
-    static int next, c, i;
+	struct task_struct** p;
 /* check alarm, wake up any interruptible tasks that have got a signal */
     for (p = &LAST_TASK; p > &FIRST_TASK; --p) /* TO READ */
         if (*p) {
@@ -122,11 +121,11 @@ void schedule(void)
                 (*p)->state = TASK_RUNNING;
             }
         }
-/* this is the scheduler proper: */
+    /* this is the scheduler proper: */
+    int next = 0;
     do {
-        c = -1;                 /* why not 0, can counter be < -1 ? */
-        next = 0;
-        i = NR_TASKS;
+        int c = -1;                 /* why not 0, can counter be < -1 ? */
+        int i = NR_TASKS;
         p = task + NR_TASKS;    // the ghost task
 
         while (--i) {   // i in [NR_TASKS..1], task[0] will never be touched
@@ -155,16 +154,14 @@ void sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
 
-	if (!p)
-		return;
-	if (current == &(init_task.task))
-		panic("task[0] trying to sleep");
+	if (!p) return;
+	if (current == &(init_task.task)) panic("task[0] trying to sleep");
+
 	tmp = *p;
 	*p = current;
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();
-	if (tmp)
-		tmp->state = TASK_RUNNING;
+	if (tmp) tmp->state = TASK_RUNNING;
 }
 
 void interruptible_sleep_on(struct task_struct **p)
