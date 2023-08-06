@@ -63,14 +63,15 @@ struct task_struct* last_task_used_math = NULL;
 
 struct task_struct* task[NR_TASKS] = {&(init_task.task), };
 
-long user_stack [ PAGE_SIZE>>2 ] ;      /* PAGE_SIZE == 4096 */
-                                        /* PAGE_SIZE >> 2 == 1024 */
-                                        /* user_stack is 4KB, a page size */
+/* PAGE_SIZE == 4096 */
+/* PAGE_SIZE >> 2 == 1024 */
+/* user_stack is 4KB, a page size */
+long user_stack[PAGE_SIZE>>2] __attribute__((aligned(PAGE_SIZE)));      
 
-struct {                /* head.s uses this */
-	long * a;           /* offset for %esp */
-	short b;            /* ss */
-	} stack_start = { & user_stack [PAGE_SIZE>>2] , 0x2<<3 }; /* GTD[2] */
+struct {        /* head.s uses this */
+    long* a;    /* offset for %esp */
+    short b;    /* stack segment selector */
+} stack_start = {user_stack + PAGE_SIZE>>2, 0x2<<3}; /* GTD[2] */
 
 /*
  *  'math_state_restore()' saves the current math information in the
@@ -124,7 +125,7 @@ void schedule(void)
     /* this is the scheduler proper: */
     int next = 0;
     do {
-        int c = -1;                 /* why not 0, can counter be < -1 ? */
+        int c = -1;                 
         int i = NR_TASKS;
         p = task + NR_TASKS;    // the ghost task
 
@@ -150,46 +151,45 @@ int sys_pause(void)
 	return 0;
 }
 
-void sleep_on(struct task_struct **p)
+void sleep_on(struct task_struct** p) // sleep on the double pointer p
 {
-	struct task_struct *tmp;
-
 	if (!p) return;
 	if (current == &(init_task.task)) panic("task[0] trying to sleep");
 
-	tmp = *p;
-	*p = current;
+	struct task_struct* tmp = *p;
+	*p = current;   // put the current task to sleep
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();
+    // if there is a task sleep on p before, wake it up
 	if (tmp) tmp->state = TASK_RUNNING;
 }
 
-void interruptible_sleep_on(struct task_struct **p)
+void interruptible_sleep_on(struct task_struct** p)
 {
-	struct task_struct *tmp;
+	if (!p) return;
+	if (current == &(init_task.task)) panic("task[0] trying to sleep");
 
-	if (!p)
-		return;
-	if (current == &(init_task.task))
-		panic("task[0] trying to sleep");
-	tmp=*p;
-	*p=current;
-repeat:	current->state = TASK_INTERRUPTIBLE;
-	schedule();
-	if (*p && *p != current) {
-		(**p).state=0;
-		goto repeat;
-	}
-	*p=NULL;
-	if (tmp)
-		tmp->state=0;
+	struct task_struct* tmp = *p;
+    *p = current;
+    do {
+        current->state = TASK_INTERRUPTIBLE;
+        schedule();
+        // if p is not killed & still asleep, wake it up
+        if (*p && *p != current) {
+            (*p)->state = TASK_RUNNING;     
+            break;
+        }
+    } while (1);
+	*p = NULL;
+
+	if (tmp) tmp->state = TASK_RUNNING;
 }
 
 void wake_up(struct task_struct **p)
 {
 	if (p && *p) {
-		(**p).state=0;
-		*p=NULL;
+        (*p)->state = TASK_RUNNING;     
+		*p = NULL;
 	}
 }
 

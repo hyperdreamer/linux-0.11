@@ -226,8 +226,8 @@ sys_execve:
 .p2align 2
 sys_fork:
 	call find_empty_process
-	testl %eax, %eax    # %eax == nr: Empty task slot
-	js 1f
+	testl %eax, %eax    # %eax == nr: Empty task slot if sucessful
+	js 1f               # no empty slot: %eax == -EAGAIN
 	pushl %gs
 	pushl %esi
 	pushl %edi

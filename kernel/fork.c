@@ -146,16 +146,16 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 int find_empty_process(void)
 {
 	register int i;
-/////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////
     // find an unused id for new process
     // since ++last_pid can make last_pid overflow, it's neccessary to enusre
     // (++last_pid)>0.
 repeat:
     if ((++last_pid) < 0) last_pid = 1; 
-    for (i = 0; i < NR_TASKS; i++)
+    for (i = 0; i < NR_TASKS; ++i)
         if (task[i] && task[i]->pid == last_pid) goto repeat;
-////////////////////////////////////////////////////////////////        
-    for (i = 1; i < NR_TASKS; i++)  /* find an empty slot for new process */
+    ////////////////////////////////////////////////////////////////        
+    for (i = 1; i < NR_TASKS; ++i)  /* find an empty slot for new process */
         if (!task[i]) return i;
     return -EAGAIN;
 }
