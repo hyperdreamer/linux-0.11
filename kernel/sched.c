@@ -66,12 +66,12 @@ struct task_struct* task[NR_TASKS] = {&(init_task.task), };
 /* PAGE_SIZE == 4096 */
 /* PAGE_SIZE >> 2 == 1024 */
 /* user_stack is 4KB, a page size */
-long user_stack[PAGE_SIZE>>2] __attribute__((aligned(PAGE_SIZE)));      
+long user_stack[PAGE_SIZE>>2] __attribute__((aligned(PAGE_SIZE)));
 
 struct {        /* head.s uses this */
     long* a;    /* offset for %esp */
     short b;    /* stack segment selector */
-} stack_start = {user_stack + PAGE_SIZE>>2, 0x2<<3}; /* GTD[2] */
+} stack_start = {user_stack+(PAGE_SIZE>>2), 0x2<<3}; /* GTD[2] */
 
 /*
  *  'math_state_restore()' saves the current math information in the
