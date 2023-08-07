@@ -39,7 +39,7 @@
 #include <linux/head.h>
 #include <linux/kernel.h>
 
-volatile void do_exit(long code);
+extern volatile int do_exit(long code);    // void --> int by Henry
 
 static inline volatile void oom(void) /* ouot of memory function */
 {
