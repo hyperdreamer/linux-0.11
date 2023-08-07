@@ -31,6 +31,14 @@ void release(struct task_struct* p)
     panic("Trying to release non-existent task!");
 }
 
+static inline void fast_release(struct task_struct** p)
+{   // careful, by Henry
+    free_page((unsigned long) *p);
+    *p = NULL;
+    schedule();
+    return;
+}
+
 static inline int send_sig(long sig, struct task_struct* p, int priv)
 {
     if (!p || sig<1 || sig>32) return -EINVAL;
@@ -61,9 +69,9 @@ static void kill_session(void)
 int sys_kill(int pid, int sig)
 {
     struct task_struct** p = task + NR_TASKS;
-    int err, retval = 0;
+    int err = 0, retval = 0;
 
-    if (pid == 0)  
+    if (!pid) // pid == 0  
         while (--p > &FIRST_TASK) { // for group members forcefully
             if (*p && (*p)->pgrp == current->pid && (err=send_sig(sig, *p, 1)))
                 retval = err;
@@ -91,7 +99,7 @@ static void tell_father(int pid)
 {
     if (pid)
         for (int i = 0; i < NR_TASKS; ++i) 
-        {
+        {   // tell father to do some cleanup
             if (!task[i] || task[i]->pid != pid) continue;
             task[i]->signal |= (1<<(SIGCHLD-1));
             return;
@@ -134,7 +142,7 @@ int do_exit(long code)
     current->exit_code = code;
     tell_father(current->father);   // tell its father to do some cleanup
 #ifdef DEBUG
-    printkc("Current process exits, PID: %d\n",current->pid);
+    printkc("Current process exits, PID: %d\n", current->pid);
 #endif
     schedule();
 
@@ -143,62 +151,61 @@ int do_exit(long code)
 
 int sys_exit(int error_code)
 {
-	return do_exit((error_code&0xff)<<8);
+	return do_exit( (error_code & 0xff)<<8 );
 }
 
-int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options)
+int sys_waitpid(pid_t pid, unsigned long* stat_addr, int options)
 {
-	int flag, code;
-	struct task_struct ** p;
-
-	verify_area(stat_addr,4);
-repeat:
-	flag=0;
-	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p) {
-		if (!*p || *p == current)
-			continue;
-		if ((*p)->father != current->pid)
-			continue;
-		if (pid>0) {
-			if ((*p)->pid != pid)
-				continue;
-		} else if (!pid) {
-			if ((*p)->pgrp != current->pgrp)
-				continue;
-		} else if (pid != -1) {
-			if ((*p)->pgrp != -pid)
-				continue;
-		}
-		switch ((*p)->state) {
-			case TASK_STOPPED:
-				if (!(options & WUNTRACED))
-					continue;
-				put_fs_long(0x7f,stat_addr);
-				return (*p)->pid;
-			case TASK_ZOMBIE:
-				current->cutime += (*p)->utime;
-				current->cstime += (*p)->stime;
-				flag = (*p)->pid;
-				code = (*p)->exit_code;
-				release(*p);
-				put_fs_long(code,stat_addr);
-				return flag;
-			default:
-				flag=1;
-				continue;
-		}
-	}
-	if (flag) {
-		if (options & WNOHANG)
-			return 0;
-		current->state=TASK_INTERRUPTIBLE;
-		schedule();
-		if (!(current->signal &= ~(1<<(SIGCHLD-1))))
-			goto repeat;
-		else
-			return -EINTR;
-	}
-	return -ECHILD;
+    do {
+        int flag = 0;
+        
+        for (struct task_struct** p = &LAST_TASK; p > &FIRST_TASK; --p) {
+            if (!*p || *p == current) continue;
+            
+            if ((*p)->father != current->pid) continue;
+            // now p is a child of current
+            if (pid > 0) {  // for specific pid
+                if ((*p)->pid != pid) continue;
+            } 
+            else if (!pid) {    // pid ==0: for all group members
+                if ((*p)->pgrp != current->pgrp) continue;
+            } 
+            else if (pid != -1) {   // pid < -1: for specific group
+                if ((*p)->pgrp != -pid) continue;
+            }
+            // pid == -1: for all children
+            switch ((*p)->state) {
+            case TASK_STOPPED:
+                if (!(options & WUNTRACED)) continue;
+                verify_area(stat_addr, 4);
+                put_fs_long(0x7f, stat_addr);
+                return (*p)->pid;
+             
+            case TASK_ZOMBIE:
+                current->cutime += (*p)->utime;
+                current->cstime += (*p)->stime;
+                flag = (*p)->pid;
+                int code = (*p)->exit_code;
+                //release(*p);
+                fast_release(p); // by Henry
+                verify_area(stat_addr, 4);
+                put_fs_long(code, stat_addr);
+                return flag;
+             
+            default:
+                flag = 1;
+                continue;
+            }
+        }
+        
+        if (!flag) return -ECHILD;  // No WUNTRACED may trigger this
+        
+        if (options & WNOHANG) return 0;
+        // if no WHNOAHG, always wait for the next hangup
+        current->state = TASK_INTERRUPTIBLE;
+        schedule();
+        // if current recieves non-SIGCHLD
+        if ((current->signal &= ~(1<<(SIGCHLD-1))))
+            return -EINTR;
+    } while (true);
 }
-
-
