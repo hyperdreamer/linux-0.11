@@ -20,6 +20,22 @@ typedef long ptrdiff_t;
 #define NULL ((void *) 0)
 #endif
 
+///////////////// to define bool //////////////////
+#ifndef __cplusplus
+#ifndef bool
+typedef _Bool bool;
+#endif
+
+#ifndef true
+#define true 1
+#endif
+
+#ifndef false
+#define false 0
+#endif
+#endif
+///////////////////////////////////////////////////
+
 typedef int pid_t;
 typedef unsigned short uid_t;
 typedef unsigned char gid_t;
