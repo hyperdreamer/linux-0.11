@@ -151,6 +151,8 @@ int sys_pause(void)
 	return 0;
 }
 
+// Question: If one of the sleeping is killed, the tasks following
+// that dead one will never be awakened, right?
 void sleep_on(struct task_struct** p) // sleep on the double pointer p
 {
 	if (!p) return;
@@ -160,7 +162,7 @@ void sleep_on(struct task_struct** p) // sleep on the double pointer p
 	*p = current;   // put the current task to sleep
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();
-    // if there is a task sleep on p before, wake it up
+    // wakes all the asleep tasks
 	if (tmp) tmp->state = TASK_RUNNING;
 }
 
@@ -171,25 +173,17 @@ void interruptible_sleep_on(struct task_struct** p)
 
 	struct task_struct* tmp = *p;
     *p = current;
-    do {
-        current->state = TASK_INTERRUPTIBLE;
-        schedule();
-        // if p is not killed & still asleep, wake it up
-        if (*p && *p != current) {
-            (*p)->state = TASK_RUNNING;     
-            break;
-        }
-    } while (1);
-	*p = NULL;
-
+    current->state = TASK_INTERRUPTIBLE;
+    schedule();
+    wake_up(p); // wakes all the asleep tasks
 	if (tmp) tmp->state = TASK_RUNNING;
 }
 
-void wake_up(struct task_struct **p)
+inline void wake_up(struct task_struct **p)
 {
 	if (p && *p) {
         (*p)->state = TASK_RUNNING;     
-		*p = NULL;
+        *p = NULL;
 	}
 }
 
