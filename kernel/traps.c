@@ -126,96 +126,96 @@ void do_double_fault(long esp, long error_code)
 
 void do_general_protection(long esp, long error_code)
 {
-    die("general protection",esp,error_code);
+    die("general protection", esp, error_code);
 }
 
 void do_divide_error(long esp, long error_code)
 {
-    die("divide error",esp,error_code);
+    die("divide error", esp, error_code);
 }
 
 void do_int3(long * esp, long error_code,
-             long fs,long es,long ds,
-             long ebp,long esi,long edi,
-             long edx,long ecx,long ebx,long eax)
+             long fs, long es, long ds,
+             long ebp, long esi, long edi,
+             long edx, long ecx, long ebx, long eax)
 {
     int tr;
 
-    __asm__("str %%ax"
-            :"=a" (tr)
-            :"0" (0));
-    printk("eax\t\tebx\t\tecx\t\tedx\n\r%8x\t%8x\t%8x\t%8x\n\r",
-           eax,ebx,ecx,edx);
-    printk("esi\t\tedi\t\tebp\t\tesp\n\r%8x\t%8x\t%8x\t%8x\n\r",
-           esi,edi,ebp,(long) esp);
-    printk("\n\rds\tes\tfs\ttr\n\r%4x\t%4x\t%4x\t%4x\n\r",
-           ds,es,fs,tr);
+    __asm__ ("str %%ax\n\t"
+             : "=a" (tr)
+             : "0" (0)
+            );
+    printk("eax\t\tebx\t\tecx\t\tedx\n%8x\t%8x\t%8x\t%8x\n",
+           eax, ebx, ecx, edx);
+    printk("esi\t\tedi\t\tebp\t\tesp\n%8x\t%8x\t%8x\t%8x\n",
+           esi, edi, ebp, (long) esp);
+    printk("\nds\tes\tfs\ttr\n%4x\t%4x\t%4x\t%4x\n",
+           ds, es, fs, tr);
 
     //EIP:(old cs esp[1]):(old eip esp[0])
     //EFLAGS:(old eflags esp[2])
-    printk("EIP: %8x   CS: %4x  EFLAGS: %8x\n\r",esp[0],esp[1],esp[2]);
+    printk("EIP: %8x   CS: %4x  EFLAGS: %8x\n", esp[0], esp[1], esp[2]);
 }
 
 void do_nmi(long esp, long error_code)
 {
-    die("nmi",esp,error_code);
+    die("nmi", esp, error_code);
 }
 
 void do_debug(long esp, long error_code)
 {
-    die("debug",esp,error_code);
+    die("debug", esp, error_code);
 }
 
 void do_overflow(long esp, long error_code)
 {
-    die("overflow",esp,error_code);
+    die("overflow", esp, error_code);
 }
 
 void do_bounds(long esp, long error_code)
 {
-    die("bounds",esp,error_code);
+    die("bounds", esp, error_code);
 }
 
 void do_invalid_op(long esp, long error_code)
 {
-    die("invalid operand",esp,error_code);
+    die("invalid operand", esp, error_code);
 }
 
 void do_device_not_available(long esp, long error_code)
 {
-    die("device not available",esp,error_code);
+    die("device not available", esp, error_code);
 }
 
 void do_coprocessor_segment_overrun(long esp, long error_code)
 {
-    die("coprocessor segment overrun",esp,error_code);
+    die("coprocessor segment overrun", esp, error_code);
 }
 
-void do_invalid_TSS(long esp,long error_code)
+void do_invalid_TSS(long esp, long error_code)
 {
-    die("invalid TSS",esp,error_code);
+    die("invalid TSS", esp, error_code);
 }
 
-void do_segment_not_present(long esp,long error_code)
+void do_segment_not_present(long esp, long error_code)
 {
-    die("segment not present",esp,error_code);
+    die("segment not present", esp, error_code);
 }
 
-void do_stack_segment(long esp,long error_code)
+void do_stack_segment(long esp, long error_code)
 {
-    die("stack segment",esp,error_code);
+    die("stack segment", esp, error_code);
 }
 
 void do_coprocessor_error(long esp, long error_code)
 {
-    if (last_task_used_math != current)
-        return;
-    die("coprocessor error",esp,error_code);
+    if (last_task_used_math != current) return;
+    die("coprocessor error", esp, error_code);
 }
 
 void do_reserved(long esp, long error_code)
 {
-    die("reserved (15,17-47) error",esp,error_code);
+    die("reserved (15,17-47) error", esp, error_code);
 }
 
 void trap_init(void)
@@ -237,8 +237,7 @@ void trap_init(void)
     set_trap_gate(14, &page_fault);
     set_trap_gate(15, &reserved);
     set_trap_gate(16, &coprocessor_error);
-    for (int i=17; i<48; i++)
-        set_trap_gate(i, &reserved);
+    for (int i=17; i<48; i++) set_trap_gate(i, &reserved);
     set_trap_gate(45, &irq13);
     outb_p(inb_p(0x21) & 0xfb, 0x21); // send OCW1 to enable IRQ2 (for slave i8259A)
     outb(inb_p(0xA1) & 0xdf, 0xA1);   // enable IRQ13 (for coprocessor)

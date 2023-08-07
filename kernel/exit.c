@@ -13,8 +13,8 @@
 #include <linux/tty.h>
 #include <asm/segment.h>
 
-int sys_pause(void);
-int sys_close(int fd);
+extern int sys_pause(void);
+extern int sys_close(int fd);   // close file
 
 void release(struct task_struct* p)
 {
@@ -42,7 +42,6 @@ static inline int send_sig(long sig, struct task_struct* p, int priv)
     }
     
     return -EPERM;
-
 }
 
 static void kill_session(void)
@@ -59,27 +58,33 @@ static void kill_session(void)
  * XXX need to check permissions needed to send signals to process
  * groups, etc. etc.  kill() permissions semantics are tricky!
  */
-int sys_kill(int pid,int sig)
+int sys_kill(int pid, int sig)
 {
-	struct task_struct **p = NR_TASKS + task;
-	int err, retval = 0;
+    struct task_struct** p = task + NR_TASKS;
+    int err, retval = 0;
 
-	if (!pid) while (--p > &FIRST_TASK) {
-		if (*p && (*p)->pgrp == current->pid) 
-			if (err=send_sig(sig,*p,1))
-				retval = err;
-	} else if (pid>0) while (--p > &FIRST_TASK) {
-		if (*p && (*p)->pid == pid) 
-			if (err=send_sig(sig,*p,0))
-				retval = err;
-	} else if (pid == -1) while (--p > &FIRST_TASK)
-		if (err = send_sig(sig,*p,0))
-			retval = err;
-	else while (--p > &FIRST_TASK)
-		if (*p && (*p)->pgrp == -pid)
-			if (err = send_sig(sig,*p,0))
-				retval = err;
-	return retval;
+    if (pid == 0)  
+        while (--p > &FIRST_TASK) { // for group members forcefully
+            if (*p && (*p)->pgrp == current->pid && (err=send_sig(sig, *p, 1)))
+                retval = err;
+        } 
+    else if (pid > 0) 
+        while (--p > &FIRST_TASK) { // for pid
+            if (*p && (*p)->pid == pid && (err = send_sig(sig, *p, 0)))
+                retval = err;
+        } 
+    else if (pid == -1) 
+        while (--p > &FIRST_TASK) { // for all
+            if ((err = send_sig(sig, *p, 0)))
+                retval = err;
+        }
+    else 
+        while (--p > &FIRST_TASK) { // for abs(pid)
+            if (*p && (*p)->pgrp == -pid && (err = send_sig(sig, *p, 0)))
+                retval = err;
+        }
+
+    return retval;
 }
 
 static void tell_father(int pid)
