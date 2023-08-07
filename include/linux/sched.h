@@ -244,14 +244,18 @@ extern long startup_time;
 extern void add_timer(long jiffies, void (*fn)(void));
 extern void sleep_on(struct task_struct** p);
 extern void interruptible_sleep_on(struct task_struct** p);
-extern inline void wake_up(struct task_struct** p);
+extern void wake_up(struct task_struct** p);
 
 /*
  * Entry into gdt where to find first TSS. 0-nul, 1-cs, 2-ds, 3-syscall
  * 4-TSS0, 5-LDT0, 6-TSS1 etc ...
  */
+#ifndef FIRST_TSS_ENTRY
 #define FIRST_TSS_ENTRY 4
+#endif
+#ifndef FIRST_LDT_ENTRY
 #define FIRST_LDT_ENTRY (FIRST_TSS_ENTRY + 1)
+#endif
 // _TSS(n), _LDT(n) are both selectors
 #define _TSS(n) ((((unsigned long) n)<<4) + (FIRST_TSS_ENTRY<<3))
 #define _LDT(n) ((((unsigned long) n)<<4) + (FIRST_LDT_ENTRY<<3))

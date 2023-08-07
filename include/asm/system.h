@@ -116,8 +116,12 @@
  * 0x89 = 1,00,01001; p = 1; dpl = 0; type = 01001 (busy = 0)
  * 0x82 = 1,00,00010; p = 1; dpl = 0; type = 00010
  */ 
+#ifndef FIRST_TSS_ENTRY
 #define FIRST_TSS_ENTRY 4
-#define FIRST_LDT_ENTRY (FIRST_TSS_ENTRY+1)
+#endif
+#ifndef FIRST_LDT_ENTRY
+#define FIRST_LDT_ENTRY (FIRST_TSS_ENTRY + 1)
+#endif
 
 #define set_tss_desc(nr, addr) \
     _set_tssldt_desc( ((char*) (gdt + (nr<<1) + FIRST_TSS_ENTRY)), \
