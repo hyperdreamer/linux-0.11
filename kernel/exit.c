@@ -128,6 +128,9 @@ int do_exit(long code)
     current->state = TASK_ZOMBIE;
     current->exit_code = code;
     tell_father(current->father);   // tell its father to do some cleanup
+#ifdef DEBUG
+    printkc("Current process exits, PID: %d\n",current->pid);
+#endif
     schedule();
 
     return -1;	/* just to suppress warnings */
