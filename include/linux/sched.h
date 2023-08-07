@@ -89,7 +89,7 @@ struct task_struct {
 	long blocked;                   /* bitmap of masked signals */
 /* various fields */
 	int exit_code;
-	unsigned long start_code, end_code, end_data, brk,start_stack;
+	unsigned long start_code, end_code, end_data, brk, start_stack;
 	long pid, father, pgrp, session, leader;
 	unsigned short uid, euid, suid;
 	unsigned short gid, egid, sgid;
@@ -239,7 +239,7 @@ extern struct task_struct *current;
 extern long volatile jiffies;
 extern long startup_time;
 
-#define CURRENT_TIME (startup_time+jiffies/HZ)
+#define CURRENT_TIME (startup_time + jiffies/HZ)
 
 extern void add_timer(long jiffies, void (*fn)(void));
 extern void sleep_on(struct task_struct** p);

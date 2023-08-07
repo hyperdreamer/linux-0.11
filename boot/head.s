@@ -192,21 +192,21 @@ ignore_int:
     pushl %eax
     pushl %ecx
     pushl %edx
-    push %ds
-    push %es
-    push %fs
+    pushw %ds
+    pushw %es
+    pushw %fs
 
     movl $0x10, %eax    # GDT[2]: data segment
-    mov %ax, %ds
-    mov %ax, %es
-    mov %ax, %fs
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %fs
     pushl $int_msg
     call printk        # :tag printk :-)
 
     popl %eax
-    pop %fs
-    pop %es
-    pop %ds
+    popw %fs
+    popw %es
+    popw %ds
     popl %edx
     popl %ecx
     popl %eax

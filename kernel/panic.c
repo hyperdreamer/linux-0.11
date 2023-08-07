@@ -13,12 +13,13 @@
 
 void sys_sync(void);	/* it's really int */
 
-volatile void panic(const char * s)
+volatile void panic(const char* s)
 {
-	printk("Kernel panic: %s\n\r",s);
-	if (current == task[0])
-		printk("In swapper task - not syncing\n\r");
-	else
-		sys_sync();
-	for(;;);
+    printk("Kernel panic: %s\n", s);
+    if (current == task[0])
+        printk("In swapper task - not syncing\n");
+    else
+        sys_sync();     // filesystem sync, TO_READ
+
+    for(;;);
 }
