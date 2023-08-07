@@ -19,30 +19,47 @@
 #include <asm/segment.h>
 #include <asm/io.h>
 
-#define get_seg_byte(seg,addr) ({ \
-register char __res; \
-__asm__("pushw %%fs\n\t" \
-        "movw %%ax,%%fs\n\t" \
-        "movb %%fs:%2,%%al\n\t" \
-        "popw %%fs" \
-        :"=a" (__res) \
-        :"0" (seg),"m" (*(addr))); \
-__res;})
+#define get_seg_byte(seg, addr) \
+    ({ \
+     char __res; \
+     __asm__("pushw %%fs\n\t" \
+             "movw %%ax, %%fs\n\t" \
+             "movb %%fs:%2, %%al\n\t" \
+             "popw %%fs\n\t" \
+             : \
+             "=a" (__res) \
+             : \
+             "0" (seg), \
+             "m" (*(addr)) \
+            ); \
+     __res;\
+    })
 
-#define get_seg_long(seg,addr) ({ \
-register unsigned long __res; \
-__asm__("pushw %%fs\n\t" \
-        "movw %%ax,%%fs\n\t" \
-        "movl %%fs:%2,%%eax\n\t"\
-        "popw %%fs" \
-        :"=a" (__res) \
-        :"0" (seg),"m" (*(addr))); \
-__res;})
+#define get_seg_long(seg, addr) \
+    ({ \
+     unsigned long __res; \
+     __asm__("pushw %%fs\n\t" \
+             "movw %%ax, %%fs\n\t" \
+             "movl %%fs:%2, %%eax\n\t" \
+             "popw %%fs\n\t" \
+             : \
+             "=a" (__res) \
+             : \
+             "0" (seg), \
+             "m" (*(addr)) \
+            ); \
+     __res; \
+    })
 
-#define _fs() ({ \
-register unsigned short __res; \
-__asm__("mov %%fs,%%ax":"=a" (__res):); \
-__res;})
+#define _fs() \
+    ({ \
+     unsigned short __res; \
+     __asm__("movw %%fs, %%ax\n\t" \
+             :"=a" (__res) \
+             : \
+            ); \
+     __res; \
+    })
 
 int do_exit(long code);
 
@@ -68,20 +85,20 @@ void reserved(void);
 void parallel_interrupt(void);
 void irq13(void);
 
-static void die(char * str,long esp_ptr,long nr) // nr is error code
+static void die(char* str, long esp_ptr, long nr) // nr is error code
 {
-    long * esp = (long *) esp_ptr;
+    long* esp = (long*) esp_ptr;
     int i;
 
-    printk("%s: %04x\n\r",str,nr&0xffff); // extract low 16 bit of error code
+    printk("%s: %04x\n\r", str, nr & 0xffff); // extract low 16 bit of error code
     // with previllege transition :-)
     //EIP:(old cs esp[1]):(old eip esp[0])
     //EFLAGS:(old eflags esp[2])
     //ESP:(old ss esp[4]):(old esp esp[3])
     printk("EIP:\t%04x:%p\nEFLAGS:\t%p\nESP:\t%04x:%p\n",
-           esp[1],esp[0],esp[2],esp[4],esp[3]);
+           esp[1], esp[0], esp[2], esp[4], esp[3]);
     printk("fs: %04x\n", _fs()); // current %fs segment
-    printk("base: %p, limit: %p\n", get_base(current->ldt[1]), get_limit(0x17));
+    printk("base: %p, limit: %p\n", get_base(current->ldt[2]), get_limit(0x17));
     if (esp[4] == 0x17) { // old ss == 0x17: index==0b10, T1==1(ldt), RPL==3: 
         printk("Stack: ");// LDT[2], RPL==3
         for (i=0;i<4;i++) // print 4 longs (each size: 4-byte) of user stack
