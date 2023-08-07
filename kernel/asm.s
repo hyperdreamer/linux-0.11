@@ -37,7 +37,7 @@ no_error_code:
 	pushl %es                   # esp+8
 	pushl %fs                   # esp+4 :-),  the increment is 4
 	pushl $0                    # "error code" as 0, the second parameter for call
-	leal 44(%esp), %edx         # store old eip into %edx
+	leal 44(%esp), %edx         # store the effective address of esp+44 into %edx
 	pushl %edx                  # old eip address, the first parameter for call
     ## movl $0x10, %edx         # use data segment
 	movl $2<<3, %edx            # use data segment GDT[2] :-)

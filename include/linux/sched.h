@@ -269,7 +269,7 @@ extern inline void wake_up(struct task_struct ** p);
             )
 
 // str(n) gets the task nr of the current task and save it to n
-// str instruction stores the current task register
+// str instruction copes the current task register to %%ax
 // to a 16-bit general register, here %ax
 #define str(n) \
     __asm__ ("str %%ax\n\t" \
