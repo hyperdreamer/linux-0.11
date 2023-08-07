@@ -216,9 +216,9 @@ void init(void)
         
         do {
             if (pid == wait(&i)) break;
-        } while (1);
+        } while (true);
         printf("\n\rchild %d died with code %04x\n\r", pid, i);
         sync();
-    } while (1);
+    } while (true);
     _exit(0);   /* NOTE! _exit, not exit() */
 }

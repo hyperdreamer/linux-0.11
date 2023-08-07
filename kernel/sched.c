@@ -139,7 +139,7 @@ void schedule(void)
                       // otherwise reset counters of all tasks  
         for(p = &LAST_TASK; p > &FIRST_TASK; --p) 
             if (*p) (*p)->counter = ((*p)->counter >> 1) + (*p)->priority;
-    } while (1);
+    } while (true);
 #ifdef DEBUG
     printkc("Current Pid: %d\n",current->pid);
     printkc("Next Pid: %d\n",task[next]->pid);
@@ -182,7 +182,7 @@ void interruptible_sleep_on(struct task_struct** p)
 	if (tmp) tmp->state = TASK_RUNNING;
 }
 
-inline void wake_up(struct task_struct **p)
+inline void wake_up(struct task_struct** p)
 {
 	if (p && *p) {
         (*p)->state = TASK_RUNNING;     
