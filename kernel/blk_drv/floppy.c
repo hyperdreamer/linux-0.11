@@ -154,9 +154,10 @@ repeat:
 
 #define copy_buffer(from,to) \
 __asm__("cld ; rep ; movsl" \
-	::"c" (BLOCK_SIZE/4),"S" ((long)(from)),"D" ((long)(to)));
+	::"c" (BLOCK_SIZE/4),"S" ((long)(from)),"D" ((long)(to)) \
+	)
 
-inline void setup_DMA(void)
+static void setup_DMA(void)
 {
 	long addr = (long) CURRENT->buffer;
 
@@ -265,7 +266,7 @@ static void rw_interrupt(void)
 	do_fd_request();
 }
 
-inline void setup_rw_floppy(void)
+static inline void setup_rw_floppy(void)
 {
 	setup_DMA();
 	do_floppy = rw_interrupt;
@@ -405,12 +406,12 @@ static void floppy_on_interrupt(void)
 /* We cannot do a floppy-select, as that might sleep. We just force it */
 	selected = 1;
 	if (current_drive != (current_DOR & 3)) {
-        current_DOR &= 0xFC;
-        current_DOR |= current_drive;
-        outb(current_DOR, FD_DOR);
-        add_timer(2, &transfer);
-    } else
-        transfer();
+		current_DOR &= 0xFC;
+		current_DOR |= current_drive;
+		outb(current_DOR,FD_DOR);
+		add_timer(2,&transfer);
+	} else
+		transfer();
 }
 
 void do_fd_request(void)
