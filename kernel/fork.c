@@ -54,14 +54,15 @@ int copy_mem(int nr, struct task_struct* p)
 	new_data_base = new_code_base = nr * 0x4000000;	 // nr * 64MB 
 	p->start_code = new_code_base;
 
-	set_base(p->ldt[1], new_code_base);
-	set_base(p->ldt[2], new_data_base);
-	if (copy_page_tables(old_data_base, new_data_base, data_limit)) 
+    set_base(p->ldt[1], new_code_base);
+    set_base(p->ldt[2], new_data_base);
+    if (copy_page_tables(old_data_base, new_data_base, data_limit)) 
     {
-		free_page_tables(new_data_base, data_limit);
-		return -ENOMEM;
-	}
-	return 0;
+        printk("free_page_tables: from copy_mem\n");
+        free_page_tables(new_data_base, data_limit);
+        return -ENOMEM;
+    }
+    return 0;
 }
 
 /*
@@ -73,16 +74,13 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
                  long ebx,long ecx,long edx, long fs, long es, long ds,
                  long eip, long cs, long eflags, long esp, long ss)
 {
-	struct task_struct* p;
-	struct file* f;
-
-	p = (struct task_struct *) get_free_page();
+	struct task_struct* p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
 
 	task[nr] = p;
-	//*p = *current;    // It doesn't work! :-( by Henry
     //* NOTE! this doesn't copy the supervisor stack */
-    copy_block((char*) current, (char*) p, sizeof(struct task_struct));
+	*p = *current;
+    //copy_block((char*) current, (char*) p, sizeof(struct task_struct));
 
     p->state = TASK_UNINTERRUPTIBLE;
 	p->pid = last_pid;
@@ -129,8 +127,10 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 		return -EAGAIN;
 	}
     /////////////////////////////////////////////////////  
-	for (int i = 0; i < NR_OPEN; ++i) 
-        if (f = p->filp[i]) ++(f->f_count);
+	for (register int i = 0; i < NR_OPEN; ++i) {
+        struct file* f = p->filp[i];
+        if (f) ++(f->f_count);
+    }
 
 	if (current->pwd) ++(current->pwd->i_count);
 	if (current->root) ++(current->root->i_count);
