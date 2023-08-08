@@ -63,15 +63,6 @@
 #define set_system_gate(n, addr) \
 	_set_gate( ((char*)(idt + n)), 15, 3, (unsigned long) addr)
 
-#define _set_seg_desc(gate_addr,type,dpl,base,limit) {\
-	*(gate_addr) = ((base) & 0xff000000) | \
-		(((base) & 0x00ff0000)>>16) | \
-		((limit) & 0xf0000) | \
-		((dpl)<<13) | \
-		(0x00408000) | \
-		((type)<<8); \
-	*((gate_addr)+1) = (((base) & 0x0000ffff)<<16) |    \
-		((limit) & 0x0ffff); }
 /*
  * set tss or ldt descriptor (in gdt)
  * 
