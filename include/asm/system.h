@@ -7,22 +7,19 @@
  * offset of (1:)                   %esp
  */
 #define move_to_user_mode() \
-    __asm__ ("movl %%esp, %%eax\n\t" \
+    __asm__ ("movl %esp, %eax\n\t" \
              "pushl $0x17\n\t" \
-             "pushl %%eax\n\t" \
+             "pushl %eax\n\t" \
              "pushfl\n\t" \
              "pushl $0x0f\n\t" \
              "pushl $1f\n\t" \
              "iret\n" \
              "1:\n\t" \
-             "movl $0x17, %%eax\n\t" \
-             "movw %%ax, %%ds\n\t" \
-             "movw %%ax, %%es\n\t" \
-             "movw %%ax, %%fs\n\t" \
-             "movw %%ax, %%gs\n\t" \
-             : \
-             : \
-             :"%eax" \
+             "movl $0x17, %eax\n\t" \
+             "movw %ax, %ds\n\t" \
+             "movw %ax, %es\n\t" \
+             "movw %ax, %fs\n\t" \
+             "movw %ax, %gs\n\t" \
             )
 
 #define sti() __asm__ ("sti\n\t")
@@ -91,8 +88,7 @@
 /* Some bugs of limit setting. 104 bytes are not enough for tss_struct which has
  * 212 bytes, but too big for ldt which has 24 bytes. So a patch is needed. */
 #define _set_tssldt_desc(n, addr, type) \
-    __asm__ ("movl %0, %%eax\n\t" \
-             "movw $104, %1\n\t" \
+    __asm__ ("movw $104, %1\n\t" \
              "movw %%ax, %2\n\t" \
              "rorl $16, %%eax\n\t" \
              "movb %%al, %3\n\t" \
@@ -102,15 +98,13 @@
              "rorl $16, %%eax\n\t" \
              : \
              : \
-             "r"(addr), \
+             "a"(addr), \
              "m"(n[0]), \
              "m"(n[2]), \
              "m"(n[4]), \
              "m"(n[5]), \
              "m"(n[6]), \
              "m"(n[7]) \
-             : \
-             "%eax" \
             )
 /*
  * 0x89 = 1,00,01001; p = 1; dpl = 0; type = 01001 (busy = 0)
