@@ -56,10 +56,8 @@ mktime.s mktime.o: mktime.c ../include/time.h
 panic.s panic.o: panic.c ../include/linux/kernel.h ../include/linux/sched.h \
  ../include/linux/head.h ../include/linux/fs.h ../include/sys/types.h \
  ../include/linux/mm.h ../include/signal.h
-printc.s printc.o: printc.c ../include/stdarg.h ../include/stddef.h \
- ../include/linux/kernel.h ../include/asm/io.h
 printk.s printk.o: printk.c ../include/stdarg.h ../include/stddef.h \
- ../include/linux/kernel.h
+ ../include/linux/kernel.h ../include/asm/io.h
 sched.s sched.o: sched.c ../include/linux/sched.h ../include/linux/head.h \
  ../include/linux/fs.h ../include/sys/types.h ../include/linux/mm.h \
  ../include/signal.h ../include/linux/kernel.h ../include/linux/sys.h \
