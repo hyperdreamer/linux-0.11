@@ -5,12 +5,10 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (ie not a .c file).
 #
+include ../../BUILD_CONFIG.mk
 
-CC		:= gcc -m32 -march=pentium3
-CFLAGS	:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
-		   -finline-functions -fno-stack-protector -nostdinc -I../../include
-AR		:= ar
-CPP		:= gcc -m32 -march=pentium3 -E -nostdinc -I../../include
+CFLAGS	+= -I../../include
+CPP		+= $(CFLAGS)
 
 objs 	= $(patsubst %.c,%.o,$(wildcard *.c))
 

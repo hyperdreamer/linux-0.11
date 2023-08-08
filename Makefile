@@ -2,18 +2,18 @@
 # if you want the ram-disk device, define this to be the
 # size in blocks.
 #
+include BUILD_CONFIG.mk
 RAMDISK 	:= #-DRAMDISK=512
 
-AS			:= as --32
-LD			:= ld -m elf_i386
-LDFLAGS		:= -s -x -M			# for optimization
-#LDFLAGS		:= -M				# for debug
+CC			+= $(RAMDISK)
+CFLAGS		+= -Iinclude
+CPP			+= $(CFLAGS)
+
+LDFLAGS		:= -M
+#LDFLAGS 	+= -s -x
 LDFILE 		:= kernel.ld
 LDFILE_BOOT := boot/boot.ld
-CC			:= gcc -m32 -march=pentium3 $(RAMDISK)
-CFLAGS		:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
-			   -finline-functions -fno-stack-protector -nostdinc -Iinclude
-CPP			:= gcc -m32 -march=pentium3 -E -nostdinc -Iinclude
+
 OBJCOPY 	:= objcopy -R .pdr -R .comment -R .note -S -O binary
 CTAGS		:= /usr/bin/ctags --c-kinds=+p --c++-kinds=+p --fields=+iaS --extra=+qf -R
 

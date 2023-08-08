@@ -5,13 +5,12 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (ie not a .c file).
 #
-CC		:= gcc -m32 -march=pentium3
-CFLAGS	:= -O -Wall -fstrength-reduce -fomit-frame-pointer \
-		   -finline-functions -fno-stack-protector -nostdinc -I../include
-AR		:= ar
-LD 		:= ld -m elf_i386
+include ../BUILD_CONFIG.mk
+
+CFLAGS	+= -I../include
+CPP		+= $(CFLAGS)
+
 LDFLAGS	:= -r
-CPP		:= gcc -m32 -march=pentium3 -E -nostdinc -I../include
 
 objs 	= $(patsubst %.c,%.o,$(wildcard *.c))
 

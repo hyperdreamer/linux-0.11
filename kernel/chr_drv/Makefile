@@ -4,13 +4,10 @@
 # Note! Dependencies are done automagically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (ie not a .c file).
+include ../../BUILD_CONFIG.mk
 
-CC		:= gcc -m32 -march=pentium3
-CFLAGS	:= -O -Wall -fstrength-reduce -fomit-frame-pointer -fvisibility=hidden \
-		   -finline-functions -fno-stack-protector -nostdinc -I../../include
-AS		:= as --32
-AR		:= ar
-CPP		:= gcc -m32 -march=pentium3 -E -nostdinc -I../../include
+CFLAGS	+= -I../../include
+CPP		+= $(CFLAGS)
 
 asm_objs = $(patsubst %.s,%.o,$(wildcard *.s))
 cc_objs  = $(patsubst %.c,%.o,$(wildcard *.c))
@@ -23,11 +20,11 @@ $(cc_objs):%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(asm_objs):%.o: %.s
-	$(AS) $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@
 
 keyboard.o: keyboard.S ../../include/linux/config.h
 	$(CPP) -traditional $< -o $*.s 
-	$(AS) $*.s -o $@
+	$(AS) $(ASFLAGS) $*.s -o $@
 	rm $*.s
 
 .PHONY: clean
