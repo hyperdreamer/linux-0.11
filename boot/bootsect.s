@@ -172,17 +172,17 @@ ok1_read:                       # test how many bytes can be filled in current s
     subw sread, %ax             # %ax = nr of sectors left in the current track 
     movw %ax, %cx               #
     shlw $9, %cx                # bytes need to be read, %cx * (512byte/sector),  maximum 32256B < 32kB
-    addw %bx, %cx			          # within 64kB boundry test, unsigned integers addition (%bx, starting)
+    addw %bx, %cx			    # within 64kB boundry test, unsigned integers addition (%bx, starting)
     jnc  ok2_read               # it is within 64kB boundary
-    je   ok2_read				        # it is just at 64kB boundary
-    xorw %ax, %ax	              # %ax=0, but looks like 64kB
+    je   ok2_read				# it is just at 64kB boundary
+    xorw %ax, %ax	            # %ax=0, but looks like 64kB
     subw %bx, %ax               # %ax is the bytes can be read (an unsigned integer, not a negative one)
-    shrw $9, %ax				        # logical right shift: %ax/512 = nr of sectors allowed
+    shrw $9, %ax				# logical right shift: %ax/512 = nr of sectors allowed
 ok2_read:
     call read_track             # read track
     movw %ax, %cx               # %cx=%ax= nr of sectors has been read
     addw sread, %ax             # Test if there is any sectors left in the current track.
-    cmpw %cs:sectors, %ax		    # If it's yes, jump to ok3_read. (sectors: sectors/track),
+    cmpw %cs:sectors, %ax		# If it's yes, jump to ok3_read. (sectors: sectors/track),
     jne  ok3_read               # (read those left first)
     movw $1, %ax                # Otherwise the whole track has been read. Only 2 heads (0-1) are needed.
     subw head, %ax              # Test if a new cylinder should be read. If yes, use another
