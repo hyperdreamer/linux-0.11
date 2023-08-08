@@ -33,6 +33,11 @@
  * won't be any messing with the stack from main(), but we define
  * some others too.
  */
+inline int fork(void) __attribute__((always_inline));
+inline int pause(void) __attribute__((always_inline));
+inline int sync(void) __attribute__((always_inline));
+static inline int setup(void*) __attribute__((always_inline));
+
 inline _syscall0(int, fork)
 inline _syscall0(int, pause)
 static inline _syscall1(int, setup, void*, BIOS)
