@@ -27,7 +27,8 @@
 #endif
 
 /* defined in mm/memory.c */
-extern int copy_page_tables(unsigned long from, unsigned long to, long size);
+extern int copy_page_tables(unsigned long from, unsigned long to, 
+                            unsigned long size);
 extern int free_page_tables(unsigned long from, unsigned long size);
 /* defined in kernel/sched.c */
 extern void sched_init(void);

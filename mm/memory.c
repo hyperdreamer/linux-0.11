@@ -70,10 +70,10 @@ static long HIGH_MEMORY = 0;    /* initiated in mem_init */
              : \
              "S"(from), \
              "D"(to), \
-             "c"(1024) \
+             "c"(PAGE_SIZE>>2) \
             )
 
-static unsigned char mem_map[ PAGING_PAGES ] = {0,};
+static unsigned char mem_map[PAGING_PAGES] = {0};
 
 /*
  * Get physical address of first (actually last :-) free page, and mark it
@@ -129,26 +129,22 @@ void free_page(unsigned long addr)
  * a whole page table.
  * "from" stores physical address.
  */
-// called by do_exit()
 int free_page_tables(unsigned long from, unsigned long size)
 {
-    unsigned long* pg_table;
-    unsigned long* dir;
-
-    if (from & 0x3fffff)        // test if on 4Mb boundary :-)
-        panic("free_page_tables called with wrong alignment");
-
-    if (!from)        // you can't free blocks occupied by kernel and buffer :-)
-        panic("Trying to free up swapper memory space");
+    if (from & 0x3fffff) panic("free_page_tables called with wrong alignment");
+    if (!from) panic("Trying to free up swapper memory space");
 
     size = (size + 0x3fffff) >> 22; // the nr of 4Mb blocks need to be freed
-    dir = (unsigned long *) ((from>>20) & 0xffc); /* _pg_dir = 0 */
+    unsigned long* dir = (unsigned long*) ((from>>20) & 0xffc); 
     while (size-- > 0) 
-    {   // execute 'size' times
-        if (!(1 & *dir))  continue; //test page table's P bit 
-
-        pg_table = (unsigned long *) (0xfffff000 & *dir);
-        for (int nr = 0; nr < 1024; nr++) 
+    {           
+        if (!(1 & *dir)) {
+            ++dir;
+            continue;
+        }
+        
+        unsigned long* pg_table = (unsigned long*) (0xfffff000 & *dir);
+        for (register int nr = 0; nr < 1024; ++nr) 
         {   // test P bit 
             if (1 & *pg_table) free_page(0xfffff000 & *pg_table);
             *(pg_table++) = 0;  // [MOD] by Henry
@@ -178,7 +174,7 @@ int free_page_tables(unsigned long from, unsigned long size)
  * 1 Mb-range, so the pages can be shared with the kernel. Thus the
  * special case for nr=xxxx.
  */
-int copy_page_tables(unsigned long from, unsigned long to, long size)
+int copy_page_tables(unsigned long from, unsigned long to, unsigned long size)
 {
     unsigned long* from_page_table;
     unsigned long* to_page_table;
@@ -191,15 +187,14 @@ int copy_page_tables(unsigned long from, unsigned long to, long size)
     from_dir = (unsigned long*) ((from>>20) & 0xffc); /* pg_dir = 0 */
     to_dir = (unsigned long*) ((to>>20) & 0xffc);
     // nr of 4mb continuous block need to copy
-    for(size = ((unsigned) (size+0x3fffff)) >> 22; 
-        size-->0; from_dir++, to_dir++) 
+    for(size = ((unsigned long) (size+0x3fffff)) >> 22; 
+        size-- >0;
+        ++from_dir, ++to_dir) 
     {
-        if (1 & *to_dir)	// test p bit
-            panic("copy_page_tables: already exist");
-
-        if (!(1 & *from_dir))	// source is not present
-            continue;
-
+        if (1 & *to_dir) panic("copy_page_tables: already exist");
+        
+        if (!(1 & *from_dir)) continue;
+        
         // source page table address
         from_page_table = (unsigned long*) (0xfffff000 & *from_dir);
         // get a new page for dest page table
@@ -210,14 +205,13 @@ int copy_page_tables(unsigned long from, unsigned long to, long size)
         // p  :1, present now
         *to_dir = ((unsigned long) to_page_table) | 7;
         // task[0]'s LDT Discriptor Limit: 640KB: 0xA0 (160) pages
-        for (int nr = (from==0) ? 0xA0 : 1024; 
+        for (register int nr = (from==0) ? 0xA0 : 1024; 
              nr-- > 0; 
-             from_page_table++, to_page_table++) 
+             ++from_page_table, ++to_page_table) 
         {
             unsigned long this_page = *from_page_table;
-            if (!(1 & this_page))
-                continue;
-
+            if (!(1 & this_page)) continue;
+            
             this_page &= ~2; // clear R/W bit for sharing, read only
             *to_page_table = this_page; // copy the page table 
             if (this_page > LOW_MEM) 
