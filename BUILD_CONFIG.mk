@@ -12,4 +12,5 @@ AR		:= ar
 
 # Aditional
 
-#CFLAGS 	+= -g
+ASFLAGS	+= -gstabs+
+CFLAGS 	+= $(ASFLAGS)
