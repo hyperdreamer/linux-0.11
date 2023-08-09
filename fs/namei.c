@@ -62,7 +62,7 @@ static int permission(struct m_inode * inode,int mask)
  */
 static int match(int len,const char * name,struct dir_entry * de)
 {
-	int same __asm__("ax");
+	register int same __asm__ ("%eax");
 
 	if (!de || !de->inode || len > NAME_LEN)
 		return 0;

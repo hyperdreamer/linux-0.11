@@ -81,7 +81,7 @@ int sync_dev(int dev)
 	return 0;
 }
 
-void invalidate_buffers(int dev)
+static void invalidate_buffers(int dev)
 {
 	int i;
 	struct buffer_head * bh;

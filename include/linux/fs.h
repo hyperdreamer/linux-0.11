@@ -172,6 +172,7 @@ extern void floppy_on(unsigned int dev);
 extern void floppy_off(unsigned int dev);
 extern void truncate(struct m_inode * inode);
 extern void sync_inodes(void);
+extern void invalidate_inodes(int dev);
 extern void wait_on(struct m_inode * inode);
 extern int bmap(struct m_inode * inode,int block);
 extern int create_block(struct m_inode * inode,int block);
@@ -195,6 +196,8 @@ extern struct m_inode * new_inode(int dev);
 extern void free_inode(struct m_inode * inode);
 extern int sync_dev(int dev);
 extern struct super_block * get_super(int dev);
+extern void put_super(int dev);
+
 extern int ROOT_DEV;
 
 extern void mount_root(void);
