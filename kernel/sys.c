@@ -99,14 +99,9 @@ int sys_ulimit()
 	return -ENOSYS;
 }
 
-int sys_time(long* tloc)
+int sys_time()
 {
-    int i = CURRENT_TIME;
-    if (tloc) {
-        verify_area(tloc, 4);
-        put_fs_long(i, (unsigned long*) tloc); // store for user mode
-    }
-    return i;
+    return CURRENT_TIME;
 }
 
 /*
