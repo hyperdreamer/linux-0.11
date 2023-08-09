@@ -9,10 +9,8 @@ CC			+= $(RAMDISK)
 CFLAGS		+= -Iinclude
 CPP			+= $(CFLAGS)
 
-LDFLAGS		:= -M
-#LDFLAGS 	+= -s -x
-LDFILE 		:= kernel.ld
-LDFILE_BOOT := boot/boot.ld
+K_LDFLAGS 	:= -M -Ttext 0 -e startup_32
+B_LDFLAGS 	:= -Ttext 0 -e _start
 
 OBJCOPY 	:= objcopy -R .pdr -R .comment -R .note -S -O binary
 CTAGS		:= /usr/bin/ctags --c-kinds=+p --c++-kinds=+p --fields=+iaS --extra=+qf -R
@@ -56,18 +54,18 @@ int/main.o: init/main.c
 tools/kernel: tools/system
 	$(OBJCOPY) $< $@
 
-tools/system: $(components) $(LDFILE)
-	$(LD) $(LDFLAGS) $(components) -o $@ -T $(LDFILE) > System.map
+tools/system: $(components)
+	$(LD) $(K_LDFLAGS) $(components) -o $@ > System.map
 
-boot/setup: boot/setup.s $(LDFILE_BOOT)
+boot/setup: boot/setup.s
 	$(AS) $< -o boot/setup.o
-	$(LD) boot/setup.o -o boot/setup.elf -T $(LDFILE_BOOT)
+	$(LD) $(B_LDFLAGS) boot/setup.o -o boot/setup.elf
 	$(OBJCOPY) boot/setup.elf $@
 	rm boot/setup.o boot/setup.elf
 
-boot/bootsect: boot/bootsect.s $(LDFILE_BOOT)
+boot/bootsect: boot/bootsect.s
 	$(AS) $< -o boot/bootsect.o 
-	$(LD) boot/bootsect.o -o boot/bootsect.elf -T $(LDFILE_BOOT)
+	$(LD) $(B_LDFLAGS) boot/bootsect.o -o boot/bootsect.elf 
 	$(OBJCOPY) boot/bootsect.elf $@
 	rm boot/bootsect.o boot/bootsect.elf
 

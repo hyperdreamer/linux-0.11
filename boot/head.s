@@ -15,7 +15,7 @@
 
 .code32
 .text
-.globl idt, gdt, pg_dir, tmp_floppy_area
+.globl startup_32, idt, gdt, pg_dir, tmp_floppy_area
 
 pg_dir:
 startup_32:
