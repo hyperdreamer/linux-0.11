@@ -42,6 +42,13 @@ static inline void copy_block_ds2fs(const char* from, char* to, size_t size)
             );
 }
 
+#define copy_to_user(from, to, type) \
+    ({ \
+        size_t __size = sizeof(type); \
+        verify_area((void*) (to), __size); \
+        copy_block_ds2fs((const char*) (from), (char*) (to), __size); \
+    })
+
 static inline unsigned char get_fs_byte(const char* addr)
 {
 	unsigned char _v;

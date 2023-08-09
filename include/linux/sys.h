@@ -1,3 +1,10 @@
+#ifndef _SYS_H
+#define _SYS_H
+
+#include <sys/utsname.h>
+#include <sys/times.h>
+#include <sys/types.h>
+
 extern int sys_setup();
 extern int sys_exit();
 extern int sys_fork();
@@ -41,7 +48,7 @@ extern int sys_mkdir();
 extern int sys_rmdir();
 extern int sys_dup();
 extern int sys_pipe();
-extern int sys_times();
+extern int sys_times(struct tms* tbuf);
 extern int sys_prof();
 extern int sys_brk();
 extern int sys_setgid();
@@ -57,7 +64,7 @@ extern int sys_fcntl();
 extern int sys_mpx();
 extern int sys_setpgid();
 extern int sys_ulimit();
-extern int sys_uname();
+extern int sys_uname(struct utsname* utsbuf);
 extern int sys_umask();
 extern int sys_chroot();
 extern int sys_ustat();
@@ -84,3 +91,5 @@ sys_lock, sys_ioctl, sys_fcntl, sys_mpx, sys_setpgid, sys_ulimit,
 sys_uname, sys_umask, sys_chroot, sys_ustat, sys_dup2, sys_getppid,
 sys_getpgrp, sys_setsid, sys_sigaction, sys_sgetmask, sys_ssetmask,
 sys_setreuid,sys_setregid };
+
+#endif

@@ -28,7 +28,7 @@ struct tm {
 };
 
 clock_t clock(void);
-time_t time(time_t * tp);
+time_t time(time_t* tp);
 double difftime(time_t time2, time_t time1);
 time_t mktime(struct tm * tp);
 

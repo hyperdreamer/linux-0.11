@@ -12,6 +12,7 @@
 #include <asm/segment.h>
 #include <sys/times.h>
 #include <sys/utsname.h>
+#include <sys/types.h>
 
 int sys_ftime()
 {
@@ -101,7 +102,7 @@ int sys_ulimit()
 
 int sys_time()
 {
-    return CURRENT_TIME;
+	return CURRENT_TIME;
 }
 
 /*
@@ -149,13 +150,8 @@ int sys_stime(long * tptr)
 
 int sys_times(struct tms* tbuf)
 {
-    if (tbuf) {
-        verify_area(tbuf, sizeof(struct tms));
-        put_fs_long(current->utime, (unsigned long*) &tbuf->tms_utime);
-        put_fs_long(current->stime, (unsigned long*) &tbuf->tms_stime);
-        put_fs_long(current->cutime, (unsigned long*) &tbuf->tms_cutime);
-        put_fs_long(current->cstime, (unsigned long*) &tbuf->tms_cstime);
-    }
+    if (tbuf) copy_to_user(&(current->utime), tbuf, struct tms);
+
     return jiffies;
 }
 
@@ -177,7 +173,7 @@ int sys_setpgid(int pid, int pgid)
     if (!pid) pid = current->pid;
     if (!pgid) pgid = current->pid;
 
-    for (int i = 0; i < NR_TASKS; ++i)
+    for (register int i = 0; i < NR_TASKS; ++i)
         if (task[i] && task[i]->pid == pid) {
             if (task[i]->leader) return -EPERM;
             if (task[i]->session != current->session) return -EPERM;
@@ -206,19 +202,15 @@ int sys_setsid(void)
 	return current->pgrp;
 }
 
-int sys_uname(struct utsname* name)
+int sys_uname(struct utsname* utsbuf)
 {
-	static struct utsname thisname = {
-		"linux .0", "nodename", "release ", "version ", "machine "
-	};
+    static struct utsname thisname = {
+        "linux .0", "nodename", "release ", "version ", "machine "
+    };
 
-	if (!name) return -ERROR;
+	if (!utsbuf) return -ERROR;
 
-    size_t size = sizeof(struct utsname);
-	verify_area(name, size);
-	for(int i = 0; i < size; ++i)
-		put_fs_byte(((char *) &thisname)[i], i+(char *) name);
-
+    copy_to_user(&thisname, utsbuf, struct utsname);
 	return 0;
 }
 
@@ -228,4 +220,25 @@ int sys_umask(int mask)
 
 	current->umask = mask & 0777;
 	return old;
+}
+
+//////////////////////////////////////////////////////////////////////////
+#define __LIBRARY__
+#include <unistd.h>
+//int uname(struct utsname * utsbuf);
+_syscall1(int, uname, struct utsname*, utsbuf)
+
+//int time_t times(struct tms* tp);
+_syscall1(time_t, times, struct tms*, tp)
+
+inline time_t time(time_t* tp)
+{
+    if (tp) {
+        __asm__ ("int $0x80"
+                 : "=a" (*tp)
+                 : "0" (__NR_time)
+                );
+        return *tp;
+    }
+    return -ERROR;
 }

@@ -61,8 +61,8 @@ printk.s printk.o: printk.c ../include/stdarg.h ../include/stddef.h \
 sched.s sched.o: sched.c ../include/linux/sched.h ../include/linux/head.h \
  ../include/linux/fs.h ../include/sys/types.h ../include/linux/mm.h \
  ../include/signal.h ../include/linux/kernel.h ../include/linux/sys.h \
- ../include/linux/fdreg.h ../include/asm/system.h ../include/asm/io.h \
- ../include/asm/segment.h
+ ../include/sys/utsname.h ../include/sys/times.h ../include/linux/fdreg.h \
+ ../include/asm/system.h ../include/asm/io.h ../include/asm/segment.h
 signal.s signal.o: signal.c ../include/linux/sched.h ../include/linux/head.h \
  ../include/linux/fs.h ../include/sys/types.h ../include/linux/mm.h \
  ../include/signal.h ../include/linux/kernel.h ../include/asm/segment.h
@@ -70,7 +70,8 @@ sys.s sys.o: sys.c ../include/errno.h ../include/linux/sched.h \
  ../include/linux/head.h ../include/linux/fs.h ../include/sys/types.h \
  ../include/linux/mm.h ../include/signal.h ../include/linux/tty.h \
  ../include/termios.h ../include/linux/kernel.h ../include/asm/segment.h \
- ../include/sys/times.h ../include/sys/utsname.h
+ ../include/sys/times.h ../include/sys/utsname.h ../include/unistd.h \
+ ../include/sys/stat.h ../include/utime.h
 traps.s traps.o: traps.c ../include/string.h ../include/linux/head.h \
  ../include/linux/sched.h ../include/linux/fs.h ../include/sys/types.h \
  ../include/linux/mm.h ../include/signal.h ../include/linux/kernel.h \

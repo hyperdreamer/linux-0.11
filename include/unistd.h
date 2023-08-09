@@ -131,59 +131,75 @@
 #define __NR_setregid	71
 
 // no arguement
-#define _syscall0(type,name) \
+#define _syscall0(type, name) \
 type name(void) \
 { \
-long __res; \
-__asm__ volatile ("int $0x80" \
-	: "=a" (__res) \
-	: "0" (__NR_##name)); \
-if (__res >= 0) \
-	return (type) __res; \
-errno = -__res; \
-return -1; \
+    register long __res asm("%eax"); \
+    __asm__ __volatile__("int $0x80\n\t" \
+                         : "=a" (__res) \
+                         : "0" (__NR_##name) \
+                        ); \
+    if (__res >= 0) return (type) __res; \
+    \
+    errno = -__res; \
+    return -1; \
 }
 
 // 1 arguement
-#define _syscall1(type,name,atype,a) \
+#define _syscall1(type, name, atype, a) \
 type name(atype a) \
 { \
-long __res; \
-__asm__ volatile ("int $0x80" \
-	: "=a" (__res) \
-	: "0" (__NR_##name),"b" ((long)(a))); \
-if (__res >= 0) \
-	return (type) __res; \
-errno = -__res; \
-return -1; \
+    register long __res asm("%eax"); \
+    __asm__ __volatile__("int $0x80\n\t" \
+                         : \
+                         "=a" (__res) \
+                         : \
+                         "0" (__NR_##name), \
+                         "b" ((long) (a))\
+                        ); \
+    if (__res >= 0) return (type) __res; \
+    \
+    errno = -__res; \
+    return -1; \
 }
 
 // 2 arguements
-#define _syscall2(type,name,atype,a,btype,b) \
-type name(atype a,btype b) \
+#define _syscall2(type, name, atype, a, btype, b) \
+type name(atype a, btype b) \
 { \
-long __res; \
-__asm__ volatile ("int $0x80" \
-	: "=a" (__res) \
-	: "0" (__NR_##name),"b" ((long)(a)),"c" ((long)(b))); \
-if (__res >= 0) \
-	return (type) __res; \
-errno = -__res; \
-return -1; \
+    register long __res asm("%eax"); \
+    __asm__ __volatile__("int $0x80" \
+                         : \
+                         "=a" (__res) \
+                         : \
+                         "0" (__NR_##name), \
+                         "b" ((long) (a)), \
+                         "c" ((long) (b)) \
+                        ); \
+    if (__res >= 0) return (type) __res; \
+    \
+    errno = -__res; \
+    return -1; \
 }
 
 // 3 arguements
-#define _syscall3(type,name,atype,a,btype,b,ctype,c) \
-type name(atype a,btype b,ctype c) \
+#define _syscall3(type, name, atype, a, btype, b, cctype, c) \
+type name(atype a, btype b, cctype c) \
 { \
-long __res; \
-__asm__ volatile ("int $0x80" \
-	: "=a" (__res) \
-	: "0" (__NR_##name),"b" ((long)(a)),"c" ((long)(b)),"d" ((long)(c))); \
-if (__res>=0) \
-	return (type) __res; \
-errno=-__res; \
-return -1; \
+    register long __res asm("%eax"); \
+    __asm__ __volatile__("int $0x80" \
+                         : \
+                         "=a" (__res) \
+                         : \
+                         "0" (__NR_##name), \
+                         "b" ((long)(a)), \
+                         "c" ((long)(b)), \
+                         "d" ((long)(c)) \
+                        ); \
+    if (__res >= 0) return (type) __res; \
+    \
+    errno=-__res; \
+    return -1; \
 }
 
 #endif /* __LIBRARY__ */
