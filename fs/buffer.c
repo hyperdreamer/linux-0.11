@@ -264,14 +264,12 @@ void brelse(struct buffer_head * buf)
  * bread() reads a specified block and returns the buffer that contains
  * it. It returns NULL if the block was unreadable.
  */
-struct buffer_head * bread(int dev,int block)
+struct buffer_head* bread(int dev, int block)
 {
-	struct buffer_head * bh;
+	struct buffer_head* bh = getblk(dev, block);
+	if (!bh) panic("bread: getblk returned NULL\n");
+	if (bh->b_uptodate) return bh;
 
-	if (!(bh=getblk(dev,block)))
-		panic("bread: getblk returned NULL\n");
-	if (bh->b_uptodate)
-		return bh;
 	ll_rw_block(READ,bh);
 	wait_on_buffer(bh);
 	if (bh->b_uptodate)

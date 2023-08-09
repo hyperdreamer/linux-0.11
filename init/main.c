@@ -38,9 +38,13 @@ inline int pause(void) __attribute__((always_inline));
 inline int sync(void) __attribute__((always_inline));
 static inline int setup(void*) __attribute__((always_inline));
 
+// inline int fork(): sys_fork
 inline _syscall0(int, fork)
+// inline int pause(): sys_pause
 inline _syscall0(int, pause)
+//static inline int setup(void* BIOS): sys_setup
 static inline _syscall1(int, setup, void*, BIOS)
+//inline int sync(): sys_sync :to sync filesystem
 inline _syscall0(int, sync)
 
 static char printbuf[1024];
@@ -69,16 +73,6 @@ extern long startup_time;
  * clock I'd be interested. Most of this was trial and error, and some
  * bios-listing reading. Urghh.
  */
-
-/* #define CMOS_READ(addr) ({ \ */
-/* outb_p(0x80|addr,0x70); \ */
-/* inb_p(0x71); \ */
-/* }) */
-
-#define CMOS_READ(addr) ({ \
-outb_p(addr,0x70); \
-inb_p(0x71); \
-})
 
 /* 1 byte BCD to 1 byte BIN */
 #define BCD_TO_BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
@@ -182,10 +176,10 @@ static char * envp_rc[] = { "HOME=/", NULL };
 static char * argv[] = { "-/bin/sh",NULL };
 static char * envp[] = { "HOME=/usr/root", NULL };
 
-void init(void)
+void init(void) // run by process 1
 {
     int pid,i;
-    setup((void *) &drive_info);
+    setup((void*) &drive_info);
     (void) open("/dev/tty0",O_RDWR,0);
     (void) dup(0);	// system call sys_dup
     (void) dup(0);

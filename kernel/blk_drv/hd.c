@@ -25,11 +25,6 @@
 #define MAJOR_NR 3
 #include "blk.h"
 
-#define CMOS_READ(addr) ({ \
-outb_p(0x80|addr,0x70); \
-inb_p(0x71); \
-})
-
 /* Max read/write errors/sector */
 #define MAX_ERRORS	7
 #define MAX_HD		2
@@ -43,26 +38,49 @@ static int reset = 0;
  *  This struct defines the HD's and their types.
  */
 struct hd_i_struct {
-	int head,sect,cyl,wpcom,lzone,ctl;
-	};
+	int head;
+    int sect;
+    int cyl;
+    int wpcom;
+    int lzone;
+    int ctl;
+};
+
 #ifdef HD_TYPE
 struct hd_i_struct hd_info[] = { HD_TYPE };
-#define NR_HD ((sizeof (hd_info))/(sizeof (struct hd_i_struct)))
+#define NR_HD (sizeof(hd_info)/sizeof(struct hd_i_struct))
 #else
-struct hd_i_struct hd_info[] = { {0,0,0,0,0,0},{0,0,0,0,0,0} };
+struct hd_i_struct hd_info[MAX_HD] = {};
 static int NR_HD = 0;
 #endif
-
+// partition info: start sector & nr of sectors
+// hard disk 1: hd[0]~hd[4]: hd[0] is the info of the whole 1st disk
+// hard disk 2: hd[5]~hd[9]: hd[5] is the info of the whole 2nd disk
 static struct hd_struct {
 	long start_sect;
 	long nr_sects;
-} hd[5*MAX_HD]={{0,0},};
+} hd[5 * MAX_HD] = {};
 
-#define port_read(port,buf,nr) \
-__asm__("cld;rep;insw"::"d" (port),"D" (buf),"c" (nr))
+// insw: input from port to string (16-bit version)
+#define port_read(port, buf, nr) \
+    __asm__ ("cld\n\t" \
+             "rep insw\n\t" \
+             : \
+             : \
+             "d" (port), \
+             "D" (buf), \
+             "c" (nr) \
+            )
 
-#define port_write(port,buf,nr) \
-__asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr))
+#define port_write(port, buf, nr) \
+    __asm__ ("cld\n\t" \
+             "rep outsw\n\t" \
+             : \
+             : \
+             "d" (port), \
+             "S" (buf), \
+             "c" (nr) \
+            )
 
 extern void hd_interrupt(void);
 extern void rd_load(void);
@@ -70,92 +88,90 @@ extern void rd_load(void);
 /* This may be used only once, enforced by 'static int callable' */
 int sys_setup(void * BIOS)
 {
-	static int callable = 1;
-	int i,drive;
-	unsigned char cmos_disks;
-	struct partition *p;
-	struct buffer_head * bh;
-
-	if (!callable)
-		return -1;
-	callable = 0;
+    static int callable = 1;
+    
+    if (!callable) return -1;   // only allow to call once
+    callable = 0;
 #ifndef HD_TYPE
-	for (drive=0 ; drive<2 ; drive++) {
-		hd_info[drive].cyl = *(unsigned short *) BIOS;
-		hd_info[drive].head = *(unsigned char *) (2+BIOS);
-		hd_info[drive].wpcom = *(unsigned short *) (5+BIOS);
-		hd_info[drive].ctl = *(unsigned char *) (8+BIOS);
-		hd_info[drive].lzone = *(unsigned short *) (12+BIOS);
-		hd_info[drive].sect = *(unsigned char *) (14+BIOS);
-		BIOS += 16;
-	}
-	if (hd_info[1].cyl)
-		NR_HD=2;
-	else
-		NR_HD=1;
+    // if no pre-configured, read from drive_info
+    for (int drive = 0; drive < 2; ++drive) {
+        hd_info[drive].cyl = *(unsigned short*) BIOS;
+        hd_info[drive].head = *(unsigned char*) (2+BIOS);
+        hd_info[drive].wpcom = *(unsigned short*) (5+BIOS);
+        hd_info[drive].ctl = *(unsigned char*) (8+BIOS);
+        hd_info[drive].lzone = *(unsigned short*) (12+BIOS);
+        hd_info[drive].sect = *(unsigned char*) (14+BIOS);
+        BIOS += 16;
+    }
+
+    NR_HD = hd_info[1].cyl ? 2 : 1;
+    printk("Numbers of Hard Disks: %d\n\n", NR_HD);
 #endif
-	for (i=0 ; i<NR_HD ; i++) {
-		hd[i*5].start_sect = 0;
-		hd[i*5].nr_sects = hd_info[i].head*
-				hd_info[i].sect*hd_info[i].cyl;
+    // calculate hd[0], hd[5]
+    for (int i = 0; i < NR_HD; ++i) {
+        hd[i*5].start_sect = 0;
+        hd[i*5].nr_sects = hd_info[i].head * hd_info[i].sect * hd_info[i].cyl;
+    }
+
+    /*
+       We querry CMOS about hard disks : it could be that 
+       we have a SCSI/ESDI/etc controller that is BIOS
+       compatable with ST-506, and thus showing up in our
+       BIOS table, but not register compatable, and therefore
+       not present in CMOS.
+        
+       Furthurmore, we will assume that our ST-506 drives
+       <if any> are the primary drives in the system, and 
+       the ones reflected as drive 1 or 2.
+        
+       The first drive is stored in the high nibble of CMOS
+       byte 0x12, the second in the low nibble.  This will be
+       either a 4 bit drive type or 0xf indicating use byte 0x19 
+       for an 8 bit type, drive 1, 0x1a for drive 2 in CMOS.
+        
+       Needless to say, a non-zero value means we have 
+       an AT controller hard disk for that drive.
+    */
+
+    // the 1st hd must be AT comptible, otherwise whether the
+    // 2nd is or not is meaningless.
+    unsigned char cmos_disks;
+    if ((cmos_disks = CMOS_READ(0x12)) & 0xf0)
+        NR_HD = (cmos_disks & 0x0f) ? 2 : 1;
+    else
+        NR_HD = 0; 
+
+    // clear the info 
+	for (int i = NR_HD; i < MAX_HD; ++i) {
+        hd[i*5].start_sect = 0;
+        hd[i*5].nr_sects = 0;
 	}
 
-	/*
-		We querry CMOS about hard disks : it could be that 
-		we have a SCSI/ESDI/etc controller that is BIOS
-		compatable with ST-506, and thus showing up in our
-		BIOS table, but not register compatable, and therefore
-		not present in CMOS.
+	for (int drive = 0; drive < NR_HD; ++drive) {
+        struct buffer_head* bh = bread(0x300 + drive*5, 0);
+        if (!bh) {
+            printk("Unable to read partition table of drive %d\n",
+                   drive);
+            panic("");
+        }
+        if (bh->b_data[510] != 0x55 || (unsigned char)
+            bh->b_data[511] != 0xAA) {
+            printk("Bad partition table on drive %d\n",drive);
+            panic("");
+        }
+        
+        struct partition* p = 0x1BE + (void*) bh->b_data;
+        for (int i = 1; i< 5; ++i, ++p) {
+            hd[i+5*drive].start_sect = p->start_sect;
+            hd[i+5*drive].nr_sects = p->nr_sects;
+        }
+        brelse(bh);
+    }
 
-		Furthurmore, we will assume that our ST-506 drives
-		<if any> are the primary drives in the system, and 
-		the ones reflected as drive 1 or 2.
-
-		The first drive is stored in the high nibble of CMOS
-		byte 0x12, the second in the low nibble.  This will be
-		either a 4 bit drive type or 0xf indicating use byte 0x19 
-		for an 8 bit type, drive 1, 0x1a for drive 2 in CMOS.
-
-		Needless to say, a non-zero value means we have 
-		an AT controller hard disk for that drive.
-
-		
-	*/
-
-	if ((cmos_disks = CMOS_READ(0x12)) & 0xf0)
-		if (cmos_disks & 0x0f)
-			NR_HD = 2;
-		else
-			NR_HD = 1;
-	else
-		NR_HD = 0;
-	for (i = NR_HD ; i < 2 ; i++) {
-		hd[i*5].start_sect = 0;
-		hd[i*5].nr_sects = 0;
-	}
-	for (drive=0 ; drive<NR_HD ; drive++) {
-		if (!(bh = bread(0x300 + drive*5,0))) {
-			printk("Unable to read partition table of drive %d\n\r",
-				drive);
-			panic("");
-		}
-		if (bh->b_data[510] != 0x55 || (unsigned char)
-		    bh->b_data[511] != 0xAA) {
-			printk("Bad partition table on drive %d\n\r",drive);
-			panic("");
-		}
-		p = 0x1BE + (void *)bh->b_data;
-		for (i=1;i<5;i++,p++) {
-			hd[i+5*drive].start_sect = p->start_sect;
-			hd[i+5*drive].nr_sects = p->nr_sects;
-		}
-		brelse(bh);
-	}
-	if (NR_HD)
-		printk("Partition table%s ok.\n\r",(NR_HD>1)?"s":"");
-	rd_load();
-	mount_root();
-	return (0);
+    printk("Partition table%s ok.\n", (NR_HD>1)?"s":"");
+    rd_load();
+    mount_root();
+    return (0);
 }
 
 static int controller_ready(void)

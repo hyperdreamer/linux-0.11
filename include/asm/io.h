@@ -2,7 +2,7 @@
  * outb, intb:      version without delay
  * outb_p, intb_:   version with delay
  */
-#define outb(value,port) \
+#define outb(value, port) \
     __asm__ ("outb %%al, %%dx\n\t" \
              : \
              : \
@@ -20,7 +20,7 @@
      _v; \
     })
 
-#define outb_p(value,port) \
+#define outb_p(value, port) \
     __asm__ __volatile__("outb %%al, %%dx\n\t" \
                          "jmp 1f\n" \
                          "1:\n\t" \
@@ -44,4 +44,10 @@
                          : "d" (port) \
                         ); \
      _v; \
+    })
+
+#define CMOS_READ(addr) \
+    ({ \
+        outb_p(0x80|(addr), 0x70); \
+        inb_p(0x71); \
     })
