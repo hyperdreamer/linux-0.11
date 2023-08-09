@@ -71,8 +71,8 @@ boot/bootsect: boot/bootsect.s
 
 .PHONY: clean
 clean: $(subdirs)
-	rm -f boot.img System.map tmp_make boot/bootsect boot/setup
-	rm -f init/*.o tools/system tools/kernel boot/*.o
+	rm -f boot.img System.map tmp_make boot/bootsect boot/setup \
+		tags init/*.o tools/system tools/kernel boot/*.o
 	@$(foreach prereq,$^,make clean -C $(prereq);)
 	
 .PHONY: backup

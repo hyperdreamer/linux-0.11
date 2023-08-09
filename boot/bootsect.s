@@ -37,6 +37,8 @@
 #.equ ROOT_DEV, 0x306
 .equ ROOT_DEV, 0x301
 
+.global _start
+_start:
     ljmp $BOOTSEG, $start
 
 start:

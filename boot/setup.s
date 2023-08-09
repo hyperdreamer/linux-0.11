@@ -22,7 +22,8 @@
 .equ SYSSEG,   0x1000   # system loaded at 0x10000 (65536).
 .equ SETUPSEG, 0x9020   # this is the current segment 
 
-start:
+.global _start
+_start:
     
 # ok, the read went well so we get current cursor position and save it for
 # posterity. (0x90000)

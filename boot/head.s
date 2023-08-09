@@ -13,12 +13,11 @@
  * the page directory.
  */
 
-.code32
 .text
 .globl startup_32, idt, gdt, pg_dir, tmp_floppy_area
 
-pg_dir:
 startup_32:
+pg_dir:
 	movl $0x10, %eax        # index: 0b10 == GDT[2] (data segment)
                             # TI == 0 (GDT), RPL == 0b00
     mov %ax, %ds
