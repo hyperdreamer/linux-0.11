@@ -101,8 +101,11 @@ static int count(char ** argv)
  * it is expensive to load a segment register, we try to avoid calling
  * set_fs() unless we absolutely have to.
  */
-static unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
-		unsigned long p, int from_kmem)
+static unsigned long copy_strings(int argc,
+                                  char** argv,
+                                  unsigned long* page,
+                                  unsigned long p, 
+                                  int from_kmem)
 {
 	char *tmp, *pag;
 	int len, offset = 0;
@@ -135,9 +138,8 @@ static unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 				offset = p % PAGE_SIZE;
 				if (from_kmem==2)
 					set_fs(old_fs);
-				if (!(pag = (char *) page[p/PAGE_SIZE]) &&
-				    !(pag = (char *) (page[p/PAGE_SIZE] =
-                                      (unsigned long *) get_free_page()))) 
+				if (!(pag = (char*) page[p/PAGE_SIZE]) &&
+				    !(pag = (char*) (page[p/PAGE_SIZE] = get_free_page())))
 					return 0;
 				if (from_kmem==2)
 					set_fs(new_fs);
