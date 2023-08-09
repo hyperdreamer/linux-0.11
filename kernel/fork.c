@@ -79,8 +79,8 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 
 	task[nr] = p;
     //* NOTE! this doesn't copy the supervisor stack */
-	*p = *current;
-    //copy_block((char*) current, (char*) p, sizeof(struct task_struct));
+	//*p = *current;
+    copy_block((const char*) current, (char*) p, sizeof(struct task_struct));
 
     p->state = TASK_UNINTERRUPTIBLE;
 	p->pid = last_pid;
