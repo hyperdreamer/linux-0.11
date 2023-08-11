@@ -21,15 +21,15 @@
  * read/write completion.
  */
 struct request {
-	int dev;		/* -1 if no request */
-	int cmd;		/* READ or WRITE */
-	int errors;
-	unsigned long sector;
-	unsigned long nr_sectors;
-	char * buffer;
-	struct task_struct * waiting;
-	struct buffer_head * bh;
-	struct request * next;
+    int dev;		/* -1 if no request */
+    int cmd;		/* READ or WRITE */
+    int errors;
+    unsigned long sector;
+    unsigned long nr_sectors;
+    char* buffer;
+    struct task_struct* waiting;
+    struct buffer_head* bh;
+    struct request* next;
 };
 
 /*
@@ -43,8 +43,8 @@ struct request {
 (s1)->sector < (s2)->sector))))
 
 struct blk_dev_struct {
-	void (*request_fn)(void);
-	struct request * current_request;
+    void (*request_fn)(void);
+    struct request* current_request;
 };
 
 extern struct blk_dev_struct blk_dev[NR_BLK_DEV];

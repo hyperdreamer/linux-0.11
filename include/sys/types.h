@@ -45,6 +45,7 @@ typedef unsigned short mode_t;
 typedef unsigned short umode_t;
 typedef unsigned char nlink_t;
 typedef int daddr_t;
+typedef unsigned long laddr_t;      // logical address
 typedef long off_t;
 typedef unsigned char u_char;
 typedef unsigned short ushort;

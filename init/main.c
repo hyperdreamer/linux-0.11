@@ -105,46 +105,49 @@ static long main_memory_start = 0;
 
 struct drive_info { char dummy[32]; } drive_info; /* hd0 and hd1 :-) */
 
-void main(void)               /* This really IS void, no error here. */
-{                             /* The startup routine assumes (well, ...) this */
+void main(void)     /* This really IS void, no error here. */
+{                   /* The startup routine assumes (well, ...) this */
     /*
      * Interrupts are still disabled. Do necessary setups, then
      * enable them
      */
     ROOT_DEV = ORIG_ROOT_DEV;
     drive_info = DRIVE_INFO;                /* get driver information */
+    ///////////////////////////////////////////////////////////////////////////
     memory_end = (1<<20) + (EXT_MEM_K<<10); /* see int 0x15,88 */
     memory_end &= 0xfffff000;               /* end at 4kb boundary */
-    if (memory_end > 16*1024*1024)
-        memory_end = 16*1024*1024; /* limit to 16MB */
+    if (memory_end > 16*1024*1024) memory_end = 16*1024*1024; // limit to 16MB
+    ///////////////////////////////////////////////////////////////////////////
     if (memory_end > 12*1024*1024) 
         buffer_memory_end = 4*1024*1024;
     else if (memory_end > 6*1024*1024)
         buffer_memory_end = 2*1024*1024;
     else
         buffer_memory_end = 1*1024*1024;
-    /* set user accesible memory start, 4kb boundry */
-    main_memory_start = buffer_memory_end;
+    ///////////////////////////////////////////////////////////////////////////
+    main_memory_start = buffer_memory_end;  // where user memory started
 #ifdef RAMDISK
     main_memory_start += rd_init(main_memory_start, RAMDISK*1024);
 #endif
     mem_init(main_memory_start, memory_end);
+    ///////////////////////////////////////////////////////////////////////////
     trap_init();
-    /********************************************************/
-    blk_dev_init();             /* TO READ */
-    chr_dev_init();
-    tty_init();
-    /********************************************************/
+    ///////////////////////////////////////////////////////////////////////////
+    blk_dev_init();     // TO_READ
+    chr_dev_init();     // TO_READ
+    tty_init();         // TO_READ
+    ///////////////////////////////////////////////////////////////////////////
     time_init();
-    /********************************************************/
-    sched_init();               /* system calls are initiated here */
-    buffer_init(buffer_memory_end); /* TO READ */
+    ///////////////////////////////////////////////////////////////////////////
+    sched_init();       /* system calls are initiated here */
+    ///////////////////////////////////////////////////////////////////////////
+    buffer_init(buffer_memory_end); // TO_READ
     hd_init();
     floppy_init();
-    /********************************************************/
-    sti();                      /* enable interrupts */
-    move_to_user_mode();        /* TO READ */
-    if (!fork()) {              /* we count on this going ok */
+    ///////////////////////////////////////////////////////////////////////////
+    sti();  /* enable interrupts */
+    move_to_user_mode();
+    if (!fork()) {  /* we count on this going ok */
         /* child process */
         init();
     }

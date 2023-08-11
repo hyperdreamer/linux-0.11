@@ -139,17 +139,17 @@ void floppy_deselect(unsigned int nr)
 int floppy_change(unsigned int nr)
 {
 repeat:
-	floppy_on(nr);
-	while ((current_DOR & 3) != nr && selected)
-		interruptible_sleep_on(&wait_on_floppy_select);
-	if ((current_DOR & 3) != nr)
-		goto repeat;
-	if (inb(FD_DIR) & 0x80) {
-		floppy_off(nr);
-		return 1;
-	}
-	floppy_off(nr);
-	return 0;
+    floppy_on(nr);
+    while ((current_DOR & 3) != nr && selected)
+        interruptible_sleep_on(&wait_on_floppy_select);
+    if ((current_DOR & 3) != nr) goto repeat;
+    //////////////////////////////////////////////////////////////////
+    if (inb(FD_DIR) & 0x80) {
+        floppy_off(nr);
+        return 1;
+    }
+    floppy_off(nr);
+    return 0;
 }
 
 #define copy_buffer(from,to) \

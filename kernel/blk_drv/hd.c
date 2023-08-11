@@ -135,33 +135,34 @@ int sys_setup(void * BIOS)
 
     // the 1st hd must be AT comptible, otherwise whether the
     // 2nd is or not is meaningless.
-    unsigned char cmos_disks;
-    if ((cmos_disks = CMOS_READ(0x12)) & 0xf0)
+    unsigned char cmos_disks = CMOS_READ(0x12);
+    if (cmos_disks & 0xf0)
         NR_HD = (cmos_disks & 0x0f) ? 2 : 1;
     else
         NR_HD = 0; 
-
-    // clear the info 
+    // clear the info if necessary
 	for (int i = NR_HD; i < MAX_HD; ++i) {
         hd[i*5].start_sect = 0;
         hd[i*5].nr_sects = 0;
 	}
 
 	for (int drive = 0; drive < NR_HD; ++drive) {
+        // check https://en.wikipedia.org/wiki/Master_boot_record
         struct buffer_head* bh = bread(0x300 + drive*5, 0);
         if (!bh) {
-            printk("Unable to read partition table of drive %d\n",
-                   drive);
+            printk("Unable to read partition table of drive %d\n", drive);
             panic("");
         }
-        if (bh->b_data[510] != 0x55 || (unsigned char)
-            bh->b_data[511] != 0xAA) {
+     
+        if (bh->b_data[510] != 0x55 || 
+            ((unsigned char) bh->b_data[511]) != 0xAA) 
+        {
             printk("Bad partition table on drive %d\n",drive);
             panic("");
         }
-        
+     
         struct partition* p = 0x1BE + (void*) bh->b_data;
-        for (int i = 1; i< 5; ++i, ++p) {
+        for (int i = 1; i < 5; ++i, ++p) {
             hd[i+5*drive].start_sect = p->start_sect;
             hd[i+5*drive].nr_sects = p->nr_sects;
         }
@@ -169,7 +170,7 @@ int sys_setup(void * BIOS)
     }
 
     printk("Partition table%s ok.\n", (NR_HD>1)?"s":"");
-    rd_load();
+    rd_load();      // TO-READ, skip it for now
     mount_root();
     return (0);
 }

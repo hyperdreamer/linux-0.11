@@ -49,7 +49,7 @@
 #define ECC_ERR		0x40	/* ? */
 #define	BBD_ERR		0x80	/* ? */
 
-struct partition {
+struct partition {  // 16-byte partition entry
 	unsigned char boot_ind;		/* 0x80 - active (unused) */
 	unsigned char head;		    /* ? */
 	unsigned char sector;		/* ? */
