@@ -15,11 +15,12 @@
 #include <linux/sched.h>
 #include <asm/segment.h>
 #include <asm/system.h>
+#include <sys/types.h>
 
 extern int printk(const char* fmt, ...);
 extern void write_verify(unsigned long address);
 
-static long last_pid = 0;     // "static" added by Henry
+static int last_pid = 0;
 
 void verify_area(void* addr, int size)
 {
@@ -76,12 +77,14 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 {
 	struct task_struct* p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
-
+    //////////////////////////////////////////////////////////////////////////
 	task[nr] = p;
     //* NOTE! this doesn't copy the supervisor stack */
-	//*p = *current;
+	*p = *current;
+    /*
     copy_block((const char*) current, (char*) p, sizeof(struct task_struct));
-
+    */
+    //////////////////////////////////////////////////////////////////////////
     p->state = TASK_UNINTERRUPTIBLE;
 	p->pid = last_pid;
 	p->father = current->pid;
@@ -113,36 +116,37 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 	p->tss.gs = gs & 0xffff;
 	p->tss.ldt = _LDT(nr);
 	p->tss.trace_bitmap = 0x80000000;   // what's that for?
-
+    //////////////////////////////////////////////////////////////////////////
 	if (last_task_used_math == current)
 		__asm__ ("clts\n\t"
                  "fnsave %0\n\t"
                  :
                  :"m" (p->tss.i387)
                 );
-
-	if (copy_mem(nr, p)) {
-		task[nr] = NULL;	    // fork fail :-(
-		free_page((long) p);    // then free task struct
-		return -EAGAIN;
-	}
-    /////////////////////////////////////////////////////  
-	for (register int i = 0; i < NR_OPEN; ++i) {
+    //////////////////////////////////////////////////////////////////////////
+    if (copy_mem(nr, p)) {
+        task[nr] = NULL;	    // fork fail :-(
+        free_page((long) p);    // then free task struct
+        return -EAGAIN;
+    }
+    //////////////////////////////////////////////////////////////////////////
+	for (int i = 0; i < NR_OPEN; ++i) {
         struct file* f = p->filp[i];
         if (f) ++(f->f_count);
     }
-
+    //////////////////////////////////////////////////////////////////////////
 	if (current->pwd) ++(current->pwd->i_count);
 	if (current->root) ++(current->root->i_count);
 	if (current->executable) ++(current->executable->i_count);
-    /////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 	set_tss_desc(nr, &(p->tss));
 	set_ldt_desc(nr, &(p->ldt));
 	p->state = TASK_RUNNING;	/* do this last, just in case */
-
-	return last_pid;	        // return pid of new forked process
+    //////////////////////////////////////////////////////////////////////////
+	return p->pid;	 // the return of the sys_fork
 }
 
+// avoid the race condition
 int find_empty_process(void)
 {
 	register int i;
@@ -150,12 +154,19 @@ int find_empty_process(void)
     // find an unused id for new process
     // since ++last_pid can make last_pid overflow, it's neccessary to enusre
     // (++last_pid)>0.
-repeat:
+    i = 0;
     if ((++last_pid) < 0) last_pid = 1; 
-    for (i = 0; i < NR_TASKS; ++i)
-        if (task[i] && task[i]->pid == last_pid) goto repeat;
+    while (i < NR_TASKS) {
+        if (task[i] && task[i]->pid == last_pid) {
+            i = 0;
+            if ((++last_pid) < 0) last_pid = 1; 
+            continue;
+        }
+        ++i;
+    }
     ////////////////////////////////////////////////////////////////        
     for (i = 1; i < NR_TASKS; ++i)  /* find an empty slot for new process */
-        if (!task[i]) return i;
+        if (!task[i]) return i;    
+    ////////////////////////////////////////////////////////////////        
     return -EAGAIN;
 }
