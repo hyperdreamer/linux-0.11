@@ -12,9 +12,11 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#include <linux/kernel.h>
+
 static char buf[1024];
 
-extern int vsprintf(char * buf, const char * fmt, va_list args);
+extern int vsprintf(char* buf, const char* fmt, va_list args);
 
 int printk(const char *fmt, ...)
 {
@@ -40,9 +42,10 @@ int printk(const char *fmt, ...)
 }
 
 #ifdef DEBUG
-#include <asm/io.h>
 int printkc(const char* fmt, ...)
 {
+    #include <asm/io.h>
+
     va_list args;
     int len;
 
@@ -52,10 +55,6 @@ int printkc(const char* fmt, ...)
     for (int j = 0; j < len; ++j) outb(buf[j], 0xe9);
 
     return len;
-}
-#else
-int printkc(const char* fmt, ...)
-{
 }
 #endif
 

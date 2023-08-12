@@ -13,19 +13,19 @@
 #include <errno.h>
 
 #include <linux/sched.h>
-#include <linux/kernel.h>
 #include <asm/segment.h>
 #include <asm/system.h>
 
+extern int printk(const char* fmt, ...);
 extern void write_verify(unsigned long address);
 
 static long last_pid = 0;     // "static" added by Henry
 
-void verify_area(void * addr, int size)
+void verify_area(void* addr, int size)
 {
-	unsigned long start;
+	laddr_t start;
 
-	start = (unsigned long) addr;
+	start = (laddr_t) addr;
 	size += start & 0xfff;	
 	start &= 0xfffff000;
 	start += get_base(current->ldt[2]);

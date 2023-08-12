@@ -48,11 +48,11 @@ struct stat {
 #define S_IWOTH 00002
 #define S_IXOTH 00001
 
-extern int chmod(const char *_path, mode_t mode);
-extern int fstat(int fildes, struct stat *stat_buf);
-extern int mkdir(const char *_path, mode_t mode);
-extern int mkfifo(const char *_path, mode_t mode);
-extern int stat(const char *filename, struct stat *stat_buf);
+extern int chmod(const char*_path, mode_t mode);
+extern int fstat(int fildes, struct stat* stat_buf);
+extern int mkdir(const char* _path, mode_t mode);
+extern int mkfifo(const char* _path, mode_t mode);
+extern int stat(const char* filename, struct stat* stat_buf);
 extern mode_t umask(mode_t mask);
 
 #endif

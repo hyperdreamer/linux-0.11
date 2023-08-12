@@ -1,5 +1,4 @@
-#ifndef _UNISTD_H
-#define _UNISTD_H
+#pragma once
 
 /* ok, this may be a joke, but I'm working on it */
 #define _POSIX_VERSION 198808L
@@ -270,4 +269,3 @@ int getppid(void);
 pid_t getpgrp(void);
 pid_t setsid(void);
 
-#endif

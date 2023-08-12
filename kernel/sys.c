@@ -225,15 +225,3 @@ int sys_umask(int mask)
 	current->umask = mask & 0777;
 	return old;
 }
-
-//////////////////////////////////////////////////////////////////////////
-#define __LIBRARY__
-#include <unistd.h>
-//int uname(struct utsname * utsbuf);
-_syscall1(int, uname, struct utsname*, utsbuf)
-
-//int time_t times(struct tms* tp);
-_syscall1(time_t, times, struct tms*, tp)
-
-//time_t time(time_t* tp)
-_syscall1(time_t, time, time_t*, tp)

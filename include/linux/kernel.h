@@ -2,14 +2,15 @@
  * 'kernel.h' contains some often-used function prototypes etc
  */
 # ifndef _KERNEL_H_
+#define _KERNEL_H_
 
 void verify_area(void * addr,int count);
-volatile void panic(const char * str);
-extern int printf(const char* fmt, ...);
-extern int printk(const char* fmt, ...);
-int tty_write(unsigned ch,char * buf,int count);
-void * malloc(unsigned int size);
-void free_s(void * obj, int size);
+volatile void panic(const char* str);
+int printf(const char* fmt, ...);
+int printk(const char* fmt, ...);
+int tty_write(unsigned ch, char* buf, int count);
+void* malloc(unsigned int size);
+void free_s(void* obj, int size);
 
 #define free(x) free_s((x), 0)
 
@@ -24,13 +25,10 @@ void free_s(void * obj, int size);
 
 ////////////////////////////////////////////////////////////
 // a debugger switcher. Urgely but it works! by Henry :-)
-extern int printkc(const char* fmt, ...); 
-
-#ifndef DEBUG
 #define DEBUG
-#endif
 
 #ifdef DEBUG
+int printkc(const char* fmt, ...); 
 // bochs's magic break
 #define breakpoint() \
     __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
@@ -38,6 +36,11 @@ extern int printkc(const char* fmt, ...);
                          : \
                          : "%ebx" \
                         )
+#else
+inline int printkc(const char* fmt, ...) 
+{
+    return 0;
+}
 #endif
 ////////////////////////////////////////////////////////////
 #endif //_KERNEL_H_

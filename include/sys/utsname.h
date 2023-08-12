@@ -1,5 +1,4 @@
-#ifndef _SYS_UTSNAME_H
-#define _SYS_UTSNAME_H
+#pragma once
 
 #include <sys/types.h>
 
@@ -12,5 +11,3 @@ struct utsname {
 };
 
 extern int uname(struct utsname * utsbuf);
-
-#endif

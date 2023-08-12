@@ -1,3 +1,5 @@
+#pragma once
+
 static inline void copy_block(const char* from, char* to, size_t size)
 {
     __asm__ ("cld\n\t"

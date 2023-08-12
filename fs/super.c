@@ -255,14 +255,18 @@ void mount_root(void)
     struct m_inode* mi;
 
     if (32 != sizeof(struct d_inode)) panic("bad i-node size");
-
+    //////////////////////////////////////////////////////////////////////////
     for(i = 0;i < NR_FILE; ++i) file_table[i].f_count = 0;
-
+    //////////////////////////////////////////////////////////////////////////
     if (MAJOR(ROOT_DEV) == 2) { // floopy
         printk("Insert root floppy and press ENTER");
         wait_for_keypress();    // TO-READ
     }
-
+#ifdef DEBUG
+    for (i = 0; i < NR_SUPER; ++i) 
+        printkc("%d, %d, %d\n", super_block[i].s_dev, super_block[i].s_lock, 
+                super_block[i].s_wait);
+#endif
     for(p = &super_block[0]; p < &super_block[NR_SUPER]; ++p) {
         p->s_dev = 0;
         p->s_lock = 0;

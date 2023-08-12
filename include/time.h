@@ -1,5 +1,4 @@
-#ifndef _TIME_H
-#define _TIME_H
+#pragma once
 
 #ifndef _TIME_T
 #define _TIME_T
@@ -13,7 +12,10 @@ typedef unsigned int size_t;
 
 #define CLOCKS_PER_SEC 100
 
+#ifndef _CLOCK_T
+#define _CLOCK_T
 typedef long clock_t;
+#endif
 
 struct tm {
 	time_t tm_sec;
@@ -28,7 +30,7 @@ struct tm {
 };
 
 clock_t clock(void);
-extern time_t time(time_t* tp);
+extern time_t time(time_t* tloc);
 double difftime(time_t time2, time_t time1);
 time_t mktime(struct tm * tp);
 
@@ -38,5 +40,3 @@ struct tm* gmtime(const time_t *tp);
 struct tm* localtime(const time_t * tp);
 size_t strftime(char * s, size_t smax, const char * fmt, const struct tm * tp);
 void tzset(void);
-
-#endif

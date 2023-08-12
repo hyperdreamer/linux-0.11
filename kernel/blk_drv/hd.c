@@ -153,14 +153,16 @@ int sys_setup(void * BIOS)
             printk("Unable to read partition table of drive %d\n", drive);
             panic("");
         }
-     
+        //////////////////////////////////////////////////////////////////////
+        // check magic number of the boot sector
         if (bh->b_data[510] != 0x55 || 
             ((unsigned char) bh->b_data[511]) != 0xAA) 
         {
             printk("Bad partition table on drive %d\n",drive);
             panic("");
         }
-     
+        //////////////////////////////////////////////////////////////////////
+        // read the partition table
         struct partition* p = 0x1BE + (void*) bh->b_data;
         for (int i = 1; i < 5; ++i, ++p) {
             hd[i+5*drive].start_sect = p->start_sect;
@@ -168,10 +170,12 @@ int sys_setup(void * BIOS)
         }
         brelse(bh);
     }
-
     printk("Partition table%s ok.\n", (NR_HD>1)?"s":"");
-    rd_load();      // TO-READ, skip it for now
+    //////////////////////////////////////////////////////////////////////////
+    rd_load();      // load ramdisk: TO-READ, skip it for now
+    //////////////////////////////////////////////////////////////////////////
     mount_root();
+    //////////////////////////////////////////////////////////////////////////
     return (0);
 }
 
