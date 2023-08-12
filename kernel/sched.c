@@ -337,8 +337,7 @@ int sys_alarm(int seconds)
 {
     int old = current->alarm;
 
-    if (old) 
-        old = (old - jiffies) / HZ;
+    if (old) old = (old - jiffies) / HZ;
     current->alarm = (seconds > 0) ? (jiffies + HZ*seconds) : 0;
     return old;
 }
@@ -384,27 +383,32 @@ void sched_init(void)
 {
 	if (sizeof(struct sigaction) != 16)
 		panic("Struct sigaction MUST be 16 bytes");
+    //////////////////////////////////////////////////////////////////////////
     /* set tss0 and ldt0; here the type of gdt is "desc_struct" */
 	set_tss_desc(0, &(init_task.task.tss));
 	set_ldt_desc(0, &(init_task.task.ldt));
-
-	struct desc_struct* p;
-	p = gdt + FIRST_TSS_ENTRY + 2;       /* tss1 */
-	for (int i=1; i < NR_TASKS; i++) {  /* initite (tss1, ldt1)--(tss63, ldt63) */
+    //////////////////////////////////////////////////////////////////////////
+	struct desc_struct* p = gdt + FIRST_TSS_ENTRY + 2;       /* tss1 */
+    /* initite (tss1, ldt1)--(tss63, ldt63) */
+	for (int i = 1; i < NR_TASKS; ++i) {
 		task[i] = NULL;
-		p->a = p->b = 0; // tssi
+		p->a = p->b = 0; // tss_i
 		p++;
-		p->a = p->b = 0; // ldti
+		p->a = p->b = 0; // ldt_i
 		p++;
 	}
-    /* Clear NT(nested task), so that we won't have troubles with that later on */
+    //////////////////////////////////////////////////////////////////////////
+    ///
+    /* Clear NT(nested task), so that we won't have troubles with 
+     * that later on 
+     */
     // pay attention to the skill to modify the eflags :-)
 	__asm__ ("pushfl\n\t"
              "andl $0xffffbfff, (%esp)\n\t" 
              "popfl\n\t");
 	ltr(0);  // load task register for task0
 	lldt(0); /* load ldt for task0  */
-
+    //////////////////////////////////////////////////////////////////////////
     // initiate i8253, the timer_interrupt
     // 0x36 == 00,11,011,0 
     // 0-bit == 0: 16-bit binary
@@ -412,14 +416,14 @@ void sched_init(void)
     // 4~5-bit == 11: lobyte first, then hibyte
     // 6~7-bit == 00: channel 0: IRQ_0, the timer: send data to 0x40
     // Check: https://wiki.osdev.org/Programmable_Interval_Timer
-    outb_p(0x36, 0x43);                     /* binary, mode 3, LSB/MSB, counter 0 */
+    outb_p(0x36, 0x43);             /* binary, mode 3, LSB/MSB, counter 0 */
     // Send LATCH to 0x40: the timer frequency 100 Hz
-	outb_p(LATCH & 0xff, 0x40);             /* LSB */
-	outb(LATCH >> 8, 0x40);                 /* MSB */
+	outb_p(LATCH & 0xff, 0x40);     /* LSB */
+	outb(LATCH >> 8, 0x40);         /* MSB */
     // set timer interrupt handler and enable IRQ_0
 	set_intr_gate(0x20, &timer_interrupt);
 	outb(inb_p(0x21) & ~0x01, 0x21);        /* enable IRQ_0 */
-
+    //////////////////////////////////////////////////////////////////////////
 	set_system_gate(0x80, &system_call);
 }
  

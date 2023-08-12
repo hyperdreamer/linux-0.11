@@ -148,7 +148,7 @@ int sys_setup(void * BIOS)
 
 	for (int drive = 0; drive < NR_HD; ++drive) {
         // check https://en.wikipedia.org/wiki/Master_boot_record
-        struct buffer_head* bh = bread(0x300 + drive*5, 0);
+        struct buffer_head* bh = bread(0x300 + drive*5, 0); // read boot block
         if (!bh) {
             printk("Unable to read partition table of drive %d\n", drive);
             panic("");
