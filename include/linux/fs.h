@@ -1,10 +1,8 @@
+#pragma once
 /*
  * This file has definitions for some important file table
  * structures etc.
  */
-
-#ifndef _FS_H
-#define _FS_H
 
 #include <sys/types.h>
 
@@ -205,4 +203,3 @@ extern int ROOT_DEV;
 
 extern void mount_root(void);
 
-#endif

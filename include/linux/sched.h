@@ -1,5 +1,4 @@
-#ifndef _SCHED_H
-#define _SCHED_H
+#pragma once
 
 #define NR_TASKS 64
 #define HZ 100
@@ -384,4 +383,3 @@ extern void wake_up(struct task_struct** p);
      __limit; \
     })
 
-#endif

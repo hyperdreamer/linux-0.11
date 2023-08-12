@@ -1,3 +1,4 @@
+#pragma once
 /*
  * The stack layout before iret is:
  * 0x17: LDT[2]: data/stack segment %esp+16
@@ -104,6 +105,7 @@
 #ifndef FIRST_TSS_ENTRY
 #define FIRST_TSS_ENTRY 4
 #endif
+
 #ifndef FIRST_LDT_ENTRY
 #define FIRST_LDT_ENTRY (FIRST_TSS_ENTRY + 1)
 #endif
@@ -115,3 +117,4 @@
 #define set_ldt_desc(nr, addr) \
     _set_tssldt_desc( ((char*) (gdt + (nr<<1) + FIRST_LDT_ENTRY)), \
                       (unsigned long) addr, "0x82")
+

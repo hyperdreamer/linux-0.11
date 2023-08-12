@@ -58,3 +58,4 @@ struct ustat {
 	char f_fname[6];
 	char f_fpack[6];
 };
+

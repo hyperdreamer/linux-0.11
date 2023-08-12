@@ -1,5 +1,4 @@
-#ifndef _SYS_STAT_H
-#define _SYS_STAT_H
+#pragma once
 
 #include <sys/types.h>
 
@@ -55,4 +54,3 @@ extern int mkfifo(const char* _path, mode_t mode);
 extern int stat(const char* filename, struct stat* stat_buf);
 extern mode_t umask(mode_t mask);
 
-#endif

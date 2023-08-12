@@ -1,6 +1,4 @@
-#ifndef _CONFIG_H
-#define _CONFIG_H
-
+#pragma once
 /*
  * The root-device is no longer hard-coded. You can change the default
  * root-device by changing the line ROOT_DEV = XXX in boot/bootsect.s
@@ -45,4 +43,3 @@
  leave HD_TYPE undefined. This is the normal thing to do.
 */
 
-#endif

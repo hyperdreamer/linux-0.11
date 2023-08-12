@@ -1,9 +1,5 @@
-#ifndef _SYS_H
-#define _SYS_H
-
-#include <sys/utsname.h>
-#include <sys/times.h>
-#include <sys/types.h>
+#pragma once
+// only included once in kernel/schedule.c
 
 extern int sys_setup();
 extern int sys_exit();
@@ -18,7 +14,8 @@ extern int sys_link();
 extern int sys_unlink();
 extern int sys_execve();
 extern int sys_chdir();
-extern int sys_time(time_t* tloc);
+//extern int sys_time(time_t* tloc);
+extern int sys_time();
 extern int sys_mknod();
 extern int sys_chmod();
 extern int sys_chown();
@@ -28,11 +25,14 @@ extern int sys_lseek();
 extern int sys_getpid();
 extern int sys_mount();
 extern int sys_umount();
-extern int sys_setuid(int uid);
+//extern int sys_setuid(int uid);
+extern int sys_setuid();
 extern int sys_getuid();
-extern int sys_stime(time_t* tptr);
+//extern int sys_stime(time_t* tptr);
+extern int sys_stime();
 extern int sys_ptrace();
-extern int sys_alarm(int sec);
+//extern int sys_alarm(int sec);
+extern int sys_alarm();
 extern int sys_fstat();
 extern int sys_pause();
 extern int sys_utime();
@@ -48,10 +48,13 @@ extern int sys_mkdir();
 extern int sys_rmdir();
 extern int sys_dup();
 extern int sys_pipe();
-extern int sys_times(struct tms* tbuf);
+//extern int sys_times(struct tms* tbuf);
+extern int sys_times();
 extern int sys_prof();
-extern int sys_brk(unsigned long end_data_seg);
-extern int sys_setgid(int gid);
+//extern int sys_brk(unsigned long end_data_seg);
+extern int sys_brk();
+//extern int sys_setgid(int gid);
+extern int sys_setgid();
 extern int sys_getgid();
 extern int sys_signal();
 extern int sys_geteuid();
@@ -64,8 +67,10 @@ extern int sys_fcntl();
 extern int sys_mpx();
 extern int sys_setpgid();
 extern int sys_ulimit();
-extern int sys_uname(struct utsname* utsbuf);
-extern int sys_umask(int mask);
+//extern int sys_uname(struct utsname* utsbuf);
+extern int sys_uname();
+//extern int sys_umask(int mask);
+extern int sys_umask();
 extern int sys_chroot();
 extern int sys_ustat();
 extern int sys_dup2();
@@ -75,8 +80,10 @@ extern int sys_setsid();
 extern int sys_sigaction();
 extern int sys_sgetmask();
 extern int sys_ssetmask();
-extern int sys_setreuid(int ruid, int euid);
-extern int sys_setregid(int rgid, int egid);
+//extern int sys_setreuid(int ruid, int euid);
+extern int sys_setreuid();
+//extern int sys_setregid(int rgid, int egid);
+extern int sys_setregid();
 
 fn_ptr sys_call_table[] = { sys_setup, sys_exit, sys_fork, sys_read,
 sys_write, sys_open, sys_close, sys_waitpid, sys_creat, sys_link,
@@ -91,5 +98,3 @@ sys_lock, sys_ioctl, sys_fcntl, sys_mpx, sys_setpgid, sys_ulimit,
 sys_uname, sys_umask, sys_chroot, sys_ustat, sys_dup2, sys_getppid,
 sys_getpgrp, sys_setsid, sys_sigaction, sys_sgetmask, sys_ssetmask,
 sys_setreuid,sys_setregid };
-
-#endif

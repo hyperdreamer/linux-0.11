@@ -1,9 +1,7 @@
+#pragma once
 /*
  * 'kernel.h' contains some often-used function prototypes etc
  */
-# ifndef _KERNEL_H_
-#define _KERNEL_H_
-
 void verify_area(void * addr,int count);
 volatile void panic(const char* str);
 int printf(const char* fmt, ...);
@@ -43,4 +41,4 @@ inline int printkc(const char* fmt, ...)
 }
 #endif
 ////////////////////////////////////////////////////////////
-#endif //_KERNEL_H_
+

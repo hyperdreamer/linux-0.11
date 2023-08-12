@@ -1,6 +1,4 @@
-#ifndef _ERRNO_H
-#define _ERRNO_H
-
+#pragma once
 /*
  * ok, as I hadn't got any other source of information about
  * possible error numbers, I was forced to use the same numbers
@@ -57,4 +55,3 @@ extern int errno;
 #define ENOSYS		38
 #define ENOTEMPTY	39
 
-#endif
