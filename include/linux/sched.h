@@ -237,8 +237,8 @@ struct task_struct {
 extern struct task_struct *task[NR_TASKS];
 extern struct task_struct *last_task_used_math;
 extern struct task_struct *current;
-extern long volatile jiffies;
-extern long startup_time;
+extern time_t volatile jiffies;
+extern time_t startup_time;
 
 #define CURRENT_TIME (startup_time + jiffies/HZ)
 

@@ -57,7 +57,7 @@ union task_union {
 static union task_union init_task = {INIT_TASK,};
 
 long volatile jiffies = 0;
-long startup_time = 0;
+time_t startup_time = 0;
 struct task_struct* current = &(init_task.task);
 struct task_struct* last_task_used_math = NULL;
 
@@ -259,38 +259,46 @@ void do_floppy_timer(void)
 #define TIME_REQUESTS 64
 
 static struct timer_list {
-	long jiffies;
-	void (*fn)();
-	struct timer_list * next;
-} timer_list[TIME_REQUESTS], * next_timer = NULL;
+    long jiffies;
+    void (*fn)();
+    struct timer_list * next;
+} timer_list[TIME_REQUESTS], *next_timer = NULL;
 
 void add_timer(long jiffies, void (*fn)(void))
 {
     if (!fn) return;
 
     cli();
-    if (jiffies <= 0) (fn)();
+    if (jiffies <= 0) 
+        (fn)();
     else {
         struct timer_list* p;
+        ///////////////////////////////////////////////////////////////////////
+        // to find an empty timer slot
         for (p = timer_list; p < timer_list + TIME_REQUESTS; ++p)
             if (!p->fn) break;
-
+     
         if (p >= timer_list + TIME_REQUESTS)
             panic("No more time requests free");
-
+        ///////////////////////////////////////////////////////////////////////
         p->fn = fn;
         p->jiffies = jiffies;
         p->next = next_timer;
+        ///////////////////////////////////////////////////////////////////////
+        // test if the new timer will be the header
         if (next_timer->jiffies >= jiffies) next_timer = p;
+        ///////////////////////////////////////////////////////////////////////
+        // except the header's, all jiffies are delta
         struct timer_list* tmp;
         while ((tmp = p->next) && tmp->jiffies < p->jiffies) {
             p->next = tmp->next;
             tmp->next = p;
             p->jiffies -= tmp->jiffies;
         }
+        // if the new timmer is not inserted at the end
         if (tmp && tmp->jiffies >= p->jiffies) 
             tmp->jiffies -= p->jiffies; 
-        
+     
     }
     sti();
 }
@@ -302,10 +310,10 @@ void do_timer(long cpl)
 
 	if (beepcount && !--beepcount) sysbeepstop();
 
-    cpl ? current->utime++ : current->stime++;
+    cpl ? ++current->utime : ++current->stime;
 
     if (next_timer) {
-        next_timer->jiffies--;
+        --next_timer->jiffies;
         while (next_timer && next_timer->jiffies <= 0) {
             void (*fn)(void);
             fn = next_timer->fn;
@@ -324,14 +332,15 @@ void do_timer(long cpl)
 	schedule();
 }
 
-int sys_alarm(long seconds)
+// set a new alarm for the current process and returns the old
+int sys_alarm(int seconds)
 {
-	int old = current->alarm;
+    int old = current->alarm;
 
-	if (old)
-		old = (old - jiffies) / HZ;
-	current->alarm = (seconds>0)?(jiffies+HZ*seconds):0;
-	return (old);
+    if (old) 
+        old = (old - jiffies) / HZ;
+    current->alarm = (seconds > 0) ? (jiffies + HZ*seconds) : 0;
+    return old;
 }
 
 int sys_getpid(void)

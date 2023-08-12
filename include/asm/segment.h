@@ -61,7 +61,7 @@ static inline unsigned char get_fs_byte(const char* addr)
 	return _v;
 }
 
-static inline unsigned short get_fs_word(const unsigned short *addr)
+static inline unsigned short get_fs_word(const unsigned short* addr)
 {
 	unsigned short _v;
 
@@ -72,7 +72,7 @@ static inline unsigned short get_fs_word(const unsigned short *addr)
 	return _v;
 }
 
-static inline unsigned long get_fs_long(const unsigned long *addr)
+static inline unsigned long get_fs_long(const unsigned long* addr)
 {
 	unsigned long _v;
 
@@ -84,7 +84,7 @@ static inline unsigned long get_fs_long(const unsigned long *addr)
 	return _v;
 }
 
-static inline void put_fs_byte(char val, char *addr)
+static inline void put_fs_byte(char val, char* addr)
 {
     __asm__ ("movb %%al, %%fs:%1\n\t"
              :
@@ -94,7 +94,7 @@ static inline void put_fs_byte(char val, char *addr)
             );
 }
 
-static inline void put_fs_word(short val, short * addr)
+static inline void put_fs_word(short val, short* addr)
 {
     __asm__ ("movw %%ax, %%fs:%1\n\t"
              :
@@ -104,7 +104,7 @@ static inline void put_fs_word(short val, short * addr)
             );
 }
 
-static inline void put_fs_long(unsigned long val,unsigned long * addr)
+static inline void put_fs_long(unsigned long val, unsigned long* addr)
 {
     __asm__ ("movl %0, %%fs:%1\n\t"
              :
@@ -113,6 +113,12 @@ static inline void put_fs_long(unsigned long val,unsigned long * addr)
              "m" (*addr)
             );
 }
+
+#define copy_long_to_user(val, addr) \
+    ({ \
+        verify_area((void*) (addr), sizeof(long)); \
+        put_fs_long((unsigned long) (val), (unsigned long*) (addr)); \
+    })
 
 /*
  * Someone who knows GNU asm better than I should double check the followig.

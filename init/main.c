@@ -57,8 +57,8 @@ extern void hd_init(void);
 extern void floppy_init(void);
 extern void mem_init(long start, long end);
 extern long rd_init(long mem_start, int length);
-extern long kernel_mktime(struct tm * tm);
-extern long startup_time;
+extern time_t kernel_mktime(struct tm * tm);
+extern time_t startup_time;
 
 /*
  * This is set up by the setup-routine at boot-time

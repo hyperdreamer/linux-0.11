@@ -100,9 +100,13 @@ int sys_ulimit()
 	return -ENOSYS;
 }
 
-int sys_time()
+int sys_time(time_t* tloc)
 {
-	return CURRENT_TIME;
+    int i = CURRENT_TIME;
+    
+    if (tloc) copy_long_to_user(i, tloc);
+    
+	return i;
 }
 
 /*
@@ -140,7 +144,7 @@ int sys_setuid(int uid)
 	return(sys_setreuid(uid, uid));
 }
 
-int sys_stime(long * tptr)
+int sys_stime(time_t* tptr)
 {
 	if (!suser()) return -EPERM;
 
@@ -231,14 +235,5 @@ _syscall1(int, uname, struct utsname*, utsbuf)
 //int time_t times(struct tms* tp);
 _syscall1(time_t, times, struct tms*, tp)
 
-inline time_t time(time_t* tp)
-{
-    if (tp) {
-        __asm__ ("int $0x80"
-                 : "=a" (*tp)
-                 : "0" (__NR_time)
-                );
-        return *tp;
-    }
-    return -ERROR;
-}
+//time_t time(time_t* tp)
+_syscall1(time_t, time, time_t*, tp)
