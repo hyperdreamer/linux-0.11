@@ -12,8 +12,6 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-#include <linux/kernel.h>
-
 static char buf[1024];
 
 extern int vsprintf(char * buf, const char * fmt, va_list args);
@@ -50,10 +48,14 @@ int printkc(const char* fmt, ...)
 
     va_start(args, fmt);
     len = vsprintf(buf, fmt, args);
-    va_end(args)
-
-    for (int j = 0; j < len; j++) outb(buf[j], 0xe9);
+    va_end(args);
+    for (int j = 0; j < len; ++j) outb(buf[j], 0xe9);
 
     return len;
 }
+#else
+int printkc(const char* fmt, ...)
+{
+}
 #endif
+

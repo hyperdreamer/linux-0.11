@@ -5,8 +5,8 @@
 
 void verify_area(void * addr,int count);
 volatile void panic(const char * str);
-int printf(const char * fmt, ...);
-int printk(const char * fmt, ...);
+extern int printf(const char* fmt, ...);
+extern int printk(const char* fmt, ...);
 int tty_write(unsigned ch,char * buf,int count);
 void * malloc(unsigned int size);
 void free_s(void * obj, int size);
@@ -24,12 +24,13 @@ void free_s(void * obj, int size);
 
 ////////////////////////////////////////////////////////////
 // a debugger switcher. Urgely but it works! by Henry :-)
+extern int printkc(const char* fmt, ...); 
+
 #ifndef DEBUG
 #define DEBUG
 #endif
 
 #ifdef DEBUG
-int printkc(const char* fmt, ...); 
 // bochs's magic break
 #define breakpoint() \
     __asm__ __volatile__("xchgw %%bx, %%bx\n\t" \
@@ -37,14 +38,6 @@ int printkc(const char* fmt, ...);
                          : \
                          : "%ebx" \
                         )
-
-#else
-#define breakpoint() { /*nothing :-)*/; }
-inline int printkc(const char* fmt, ...) 
-{ 
-    return 0;
-}
 #endif
 ////////////////////////////////////////////////////////////
-
-#endif
+#endif //_KERNEL_H_
