@@ -20,7 +20,6 @@
 #include <sys/types.h>
 
 #include <linux/fs.h>
-
 /*
  * we need this inline - forking from kernel space will result
  * in NO COPY ON WRITE (!!!), until an execve is executed. This
@@ -49,6 +48,7 @@ inline _syscall0(int, sync)
 
 static char printbuf[1024];
 
+extern int printk(const char* fmt, ...);
 extern int vsprintf(char* buf, const char* fmt, va_list args);
 extern void init(void);
 extern void blk_dev_init(void);
@@ -73,14 +73,20 @@ extern long startup_time;
  * clock I'd be interested. Most of this was trial and error, and some
  * bios-listing reading. Urghh.
  */
-
-/* 1 byte BCD to 1 byte BIN */
-#define BCD_TO_BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
+// 32-bit BCD to BIN
+#define BCD_TO_BIN(val) ((val) = ((val) & 0xf) + \
+                                 ((val)>>4 & 0xf)  * 10 + \
+                                 ((val)>>8 & 0xf)  * 100 + \
+                                 ((val)>>12 & 0xf) * 1000 + \
+                                 ((val)>>16 & 0xf) * 10000 + \
+                                 ((val)>>20 & 0xf) * 100000 + \
+                                 ((val)>>24 & 0xf) * 1000000 + \
+                                 ((val)>>28 & 0xf) * 10000000)
 
 static void time_init(void)
 {
     struct tm time;
-
+    ///////////////////////////////////////////////////////////////////////////
     do {
         time.tm_sec = CMOS_READ(0);
         time.tm_min = CMOS_READ(2);
@@ -89,19 +95,24 @@ static void time_init(void)
         time.tm_mon = CMOS_READ(8);
         time.tm_year = CMOS_READ(9);
     } while (time.tm_sec != CMOS_READ(0)); // ensure accuracy
+    ///////////////////////////////////////////////////////////////////////////
     BCD_TO_BIN(time.tm_sec);
     BCD_TO_BIN(time.tm_min);
     BCD_TO_BIN(time.tm_hour);
     BCD_TO_BIN(time.tm_mday);
     BCD_TO_BIN(time.tm_mon);
-    BCD_TO_BIN(time.tm_year);            // Y2K Bug :-)
+    BCD_TO_BIN(time.tm_year);
+    time.tm_year += 100; // years since 1900, for PCs in the 21st century
     time.tm_mon--;                       // Jan.=0 and Dec.=11, a bit odd
     startup_time = kernel_mktime(&time); // get offset in seconds since 1970
+    printk("System Time: %04d-%02d-%02d %02d:%02d:%02d\n\n",
+           time.tm_year+1900, time.tm_mon+1, time.tm_mday,
+           time.tm_hour, time.tm_min, time.tm_sec);
 }
 
-static long memory_end = 0;
-static long buffer_memory_end = 0;
-static long main_memory_start = 0;
+static laddr_t memory_end = 0;
+static laddr_t buffer_memory_end = 0;
+static laddr_t main_memory_start = 0;
 
 struct drive_info { char dummy[32]; } drive_info; /* hd0 and hd1 :-) */
 
@@ -141,9 +152,9 @@ void main(void)     /* This really IS void, no error here. */
     ///////////////////////////////////////////////////////////////////////////
     sched_init();       /* system calls are initiated here */
     ///////////////////////////////////////////////////////////////////////////
-    buffer_init(buffer_memory_end); // TO_READ
-    hd_init();
-    floppy_init();
+    buffer_init(buffer_memory_end); 
+    hd_init();          // TO_READ
+    floppy_init();      // TO_READ
     ///////////////////////////////////////////////////////////////////////////
     sti();  /* enable interrupts */
     move_to_user_mode();
@@ -162,13 +173,14 @@ void main(void)     /* This really IS void, no error here. */
     /*******************************************************/
 }
 
-static int printf(const char *fmt, ...)
+int printf(const char *fmt, ...)
 {
     va_list args;
     int i;
 
     va_start(args, fmt);
-    write(1,printbuf,i=vsprintf(printbuf, fmt, args));
+    i = vsprintf(printbuf, fmt, args);
+    write(1, printbuf, i);
     va_end(args);
     return i;
 }
