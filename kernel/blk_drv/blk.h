@@ -1,5 +1,4 @@
-#ifndef _BLK_H
-#define _BLK_H
+#pragma once
 
 #define NR_BLK_DEV	7
 /*
@@ -37,10 +36,17 @@ struct request {
  * reads always go before writes. This is natural: reads
  * are much more time-critical than writes.
  */
-#define IN_ORDER(s1,s2) \
-((s1)->cmd<(s2)->cmd || ((s1)->cmd==(s2)->cmd && \
-((s1)->dev < (s2)->dev || ((s1)->dev == (s2)->dev && \
-(s1)->sector < (s2)->sector))))
+// pri_s1 < pri_s2
+#define PRI_ORDER(s1, s2) \
+    ( (s1)->cmd < (s2)->cmd || \
+        ( (s1)->cmd == (s2)->cmd && \
+          (s1)->dev < (s2)->dev \
+        ) \
+    )
+// pri_s1 == pri_s2
+#define PRI_EQU(s1, s2) ((s1)->cmd == (s2)->cmd && (s1)->dev == (s2)->dev) 
+// sec_s1 < sec_s2
+#define SEC_ORDER(s1, s2) ((s1)->sector < (s2)->sector)
 
 struct blk_dev_struct {
     void (*request_fn)(void);
@@ -98,13 +104,18 @@ void (*DEVICE_INTR)(void) = NULL;
 #endif
 static void (DEVICE_REQUEST)(void);
 
-static inline void unlock_buffer(struct buffer_head * bh)
+#ifndef UNLOCK_BUFFER
+#define UNLOCK_BUFFER
+static inline void unlock_buffer(struct buffer_head* bh)
 {
-	if (!bh->b_lock)
-		printk(DEVICE_NAME ": free buffer being unlocked\n");
+	if (!bh->b_lock) printk(DEVICE_NAME ": free buffer being unlocked\n");
+
+	cli();    // is cli uncessary for unlocking?
 	bh->b_lock=0;
 	wake_up(&bh->b_wait);
+    sti();
 }
+#endif 
 
 static inline void end_request(int uptodate)
 {
@@ -137,4 +148,3 @@ repeat: \
 
 #endif
 
-#endif

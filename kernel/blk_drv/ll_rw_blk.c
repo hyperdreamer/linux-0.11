@@ -20,7 +20,7 @@
  * The request-struct contains all necessary data
  * to load a nr of sectors into memory
  */
-struct request request[NR_REQUEST];
+struct request request[NR_REQUEST] = {};
 
 /*
  * used to wait on when there are no free requests
@@ -52,7 +52,7 @@ static inline void lock_buffer(struct buffer_head* bh)
 static inline void unlock_buffer(struct buffer_head* bh)
 {
 	if (!bh->b_lock) printk("ll_rw_block.c: buffer not locked\n");
-
+    //////////////////////////////////////////////////////////////////////////
 	cli();    // is cli uncessary for unlocking?
 	bh->b_lock = 0;
 	wake_up(&bh->b_wait);
@@ -66,25 +66,34 @@ static inline void unlock_buffer(struct buffer_head* bh)
  */
 static void add_request(struct blk_dev_struct* dev, struct request* req)
 {
-	req->next = NULL;
-	cli();
-	if (req->bh) req->bh->b_dirt = 0;
-
-	struct request* tmp = dev->current_request;
-	if (!tmp) {
-		dev->current_request = req;
-		sti();
-		(dev->request_fn)();
-		return;
-	}
-	for ( ; tmp->next ; tmp=tmp->next)
-		if ((IN_ORDER(tmp,req) || 
-		    !IN_ORDER(tmp,tmp->next)) &&
-		    IN_ORDER(req,tmp->next))
-			break;
-	req->next=tmp->next;
-	tmp->next=req;
-	sti();
+    cli();
+    //req->next = NULL; // Question: is this necessary?
+    if (req->bh) req->bh->b_dirt = 0;
+    //////////////////////////////////////////////////////////////////////////
+    struct request* tmp = dev->current_request;
+    if (!tmp) { // if no request before
+        dev->current_request = req;
+        sti();
+        (dev->request_fn)();
+        return;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    while (tmp->next) {
+        // tmp < tmp->next && tmp <= req && req < tmp->next
+        bool forward = SEC_ORDER(tmp, tmp->next) && 
+                       !SEC_ORDER(req, tmp) && SEC_ORDER(req, tmp->next);
+        // tmp->next < tmp && tmp->next < req && req <= tmp
+        bool backward = SEC_ORDER(tmp->next, tmp) &&
+                        SEC_ORDER(tmp->next, req) && !SEC_ORDER(tmp, req);
+        // pri_req < pri_tmp->next || pri_req == pri_tmp->next && (...)
+        bool insert = PRI_ORDER(req, tmp->next) || 
+                     (PRI_EQU(req, tmp->next) && (forward || backward));
+        if (insert) break;  // req should be inserted after tmp
+        tmp = tmp->next;
+    }
+    req->next = tmp->next;
+    tmp->next = req;
+    sti();
 }
 
 static void make_request(int major, int rw, struct buffer_head* bh)
