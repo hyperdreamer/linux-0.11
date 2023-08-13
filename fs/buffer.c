@@ -160,11 +160,11 @@ static inline void insert_into_queues(struct buffer_head* bh)
 
 static struct buffer_head* find_buffer(int dev, int block)
 {		
-	struct buffer_head* tmp;
-	for (tmp = hash(dev, block); tmp != NULL; tmp = tmp->b_next)
-		if (tmp->b_dev == dev && tmp->b_blocknr == block) return tmp;
+    struct buffer_head* tmp;
+    for (tmp = hash(dev, block); tmp != NULL; tmp = tmp->b_next)
+        if (tmp->b_dev == dev && tmp->b_blocknr == block) return tmp;
 
-	return NULL;
+    return NULL;
 }
 
 /*
@@ -180,10 +180,10 @@ struct buffer_head* get_hash_table(int dev, int block)
         struct buffer_head* bh = find_buffer(dev, block);
         if (!bh) return NULL;
      
-        ++(bh->b_count);    // prevent the bh from being freed
+        ++bh->b_count;    // prevent the bh from being freed
         wait_on_buffer(bh);
         if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
-        --(bh->b_count);
+        --bh->b_count;
     }
 }
 

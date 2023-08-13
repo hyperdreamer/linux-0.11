@@ -17,27 +17,25 @@ struct m_inode inode_table[NR_INODE]={{0,},};
 static void read_inode(struct m_inode * inode);
 static void write_inode(struct m_inode * inode);
 
-static inline void wait_on_inode(struct m_inode * inode)
+static inline void wait_on_inode(struct m_inode* inode)
 {
-	cli();
-	while (inode->i_lock)
-		sleep_on(&inode->i_wait);
-	sti();
+    cli();
+    while (inode->i_lock) sleep_on(&inode->i_wait);
+    sti();
 }
 
-static inline void lock_inode(struct m_inode * inode)
+static inline void lock_inode(struct m_inode* inode)
 {
-	cli();
-	while (inode->i_lock)
-		sleep_on(&inode->i_wait);
-	inode->i_lock=1;
-	sti();
+    cli();
+    while (inode->i_lock) sleep_on(&inode->i_wait);
+    inode->i_lock = 1;
+    sti();
 }
 
-static inline void unlock_inode(struct m_inode * inode)
+static inline void unlock_inode(struct m_inode* inode)
 {
-	inode->i_lock=0;
-	wake_up(&inode->i_wait);
+    inode->i_lock = 0;
+    wake_up(&inode->i_wait);
 }
 
 void invalidate_inodes(int dev)

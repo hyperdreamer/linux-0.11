@@ -13,6 +13,8 @@
 #include <asm/system.h>
 
 #include "blk.h"
+// use its own version of unlock_buffer
+#define UNLOCK_BUFFER
 
 /*
  * The request-struct contains all necessary data
@@ -50,8 +52,11 @@ static inline void lock_buffer(struct buffer_head* bh)
 static inline void unlock_buffer(struct buffer_head* bh)
 {
 	if (!bh->b_lock) printk("ll_rw_block.c: buffer not locked\n");
+
+	cli();    // is cli uncessary for unlocking?
 	bh->b_lock = 0;
 	wake_up(&bh->b_wait);
+    sti();
 }
 
 /*
@@ -84,7 +89,6 @@ static void add_request(struct blk_dev_struct* dev, struct request* req)
 
 static void make_request(int major, int rw, struct buffer_head* bh)
 {
-
     /* WRITEA/READA is special case - it is not really needed, so if the */
     /* buffer is locked, we just forget about it, else it's a normal read */
     bool rw_ahead = (rw == READA || rw == WRITEA);
@@ -95,7 +99,8 @@ static void make_request(int major, int rw, struct buffer_head* bh)
 
     if (rw != READ && rw != WRITE)
         panic("Bad block dev command, must be R/W/RA/WA");
-
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
     if ((rw == WRITE && !bh->b_dirt) || (rw == READ && bh->b_uptodate)) {
         unlock_buffer(bh);
@@ -131,6 +136,9 @@ repeat:
     req->bh = bh;
     req->next = NULL;
     add_request(blk_dev + major, req);      // TO-READ
+    // still blocked on buffer
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 }
 
 void ll_rw_block(int rw, struct buffer_head* bh)
