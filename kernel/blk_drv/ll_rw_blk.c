@@ -93,6 +93,18 @@ static void add_request(struct blk_dev_struct* dev, struct request* req)
     }
     req->next = tmp->next;
     tmp->next = req;
+#ifdef DEBUG
+    printkc("A HD I/O request Inserted: Dev: %d, Sector: %d, R/W: %s\n",
+            req->dev, req->sector, (req->cmd)?"W":"R");
+    printkc("Current Request List is:\n");
+    int i = 1;
+    tmp = dev->current_request; 
+    do {
+        printkc("%04d: Dev: %d, Sector: %d, R/W: %s\n\n",
+                i++, tmp->dev, tmp->sector, (tmp->cmd)?"W":"R");
+        tmp = tmp->next; 
+    } while (tmp);
+#endif
     sti();
 }
 
