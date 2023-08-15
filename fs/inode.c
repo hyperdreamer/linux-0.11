@@ -36,8 +36,10 @@ static inline void lock_inode(struct m_inode * inode)
 
 static inline void unlock_inode(struct m_inode * inode)
 {
+	cli();
 	inode->i_lock=0;
 	wake_up(&inode->i_wait);
+	sti();
 }
 
 void invalidate_inodes(int dev)
