@@ -140,6 +140,7 @@ void schedule(void)
         for(p = &LAST_TASK; p > &FIRST_TASK; --p) 
             if (*p) (*p)->counter = ((*p)->counter >> 1) + (*p)->priority;
     } while (true);
+#undef DEBUG
 #ifdef DEBUG
     printkc("Current Pid: %d\n",current->pid);
     printkc("Next Pid: %d\n",task[next]->pid);

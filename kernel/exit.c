@@ -141,6 +141,7 @@ volatile int do_exit(long code)
     current->state = TASK_ZOMBIE;
     current->exit_code = code;
     tell_father(current->father);   // tell its father to do some cleanup
+#undef DEBUG
 #ifdef DEBUG
     printkc("Current process exits, PID: %d\n", current->pid);
 #endif
