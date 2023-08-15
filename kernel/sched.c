@@ -161,11 +161,12 @@ void sleep_on(struct task_struct** p) // sleep on the double pointer p
 {
 	if (!p) return;
 	if (current == &(init_task.task)) panic("task[0] trying to sleep");
-
+    //////////////////////////////////////////////////////////////////////////
 	struct task_struct* tmp = *p;
 	*p = current;   // put the current task to sleep
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();
+    //////////////////////////////////////////////////////////////////////////
     // wakes all the asleep tasks
 	if (tmp) tmp->state = TASK_RUNNING;
 }
@@ -308,11 +309,11 @@ void do_timer(long cpl)
 {
 	extern int beepcount;
 	extern void sysbeepstop(void);
-
+    //////////////////////////////////////////////////////////////////////////
 	if (beepcount && !--beepcount) sysbeepstop();
-
+    //////////////////////////////////////////////////////////////////////////
     cpl ? ++current->utime : ++current->stime;
-
+    //////////////////////////////////////////////////////////////////////////
     if (next_timer) {
         --next_timer->jiffies;
         while (next_timer && next_timer->jiffies <= 0) {
@@ -323,13 +324,17 @@ void do_timer(long cpl)
             (fn)();
         }
     }
+    //////////////////////////////////////////////////////////////////////////
 	if (current_DOR & 0xf0) do_floppy_timer();
-	if (--current->counter > 0) return; // process still has time, no
-                                        // scheduling
-	current->counter = 0;   // it is important, a process with counter 0
-                            // can do_timer() and get -1
+    //////////////////////////////////////////////////////////////////////////
+	if (--current->counter > 0) return; // process still has time, no sched
+    //////////////////////////////////////////////////////////////////////////
+    // it is important, a process with counter 0 can do_timer() and get -1
+    // due to the previous step
+	current->counter = 0;   
+    //////////////////////////////////////////////////////////////////////////
 	if (!cpl) return;       // kernel mode, no scheduling
-
+    //////////////////////////////////////////////////////////////////////////
 	schedule();
 }
 

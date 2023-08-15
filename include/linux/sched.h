@@ -294,7 +294,7 @@ extern void wake_up(struct task_struct** p);
 // __tmp.b holds TSS(n) descriptor, __tmp.a is unimportant
 // check ljmp for task switching
 #define switch_to(n) \
-    static struct {long a,b;} __tmp; \
+    struct {long a,b;} __tmp; \
     __asm__ ("cmpl %3, current\n\t" \
              "je 1f\n\t" \
              "movw %%dx, %1\n\t" \

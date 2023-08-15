@@ -46,6 +46,12 @@ void buffer_init(laddr_t buffer_end);
 #define NR_BUFFERS nr_buffers
 #define BLOCK_SIZE 1024
 #define BLOCK_SIZE_BITS 10
+
+#define BLCK_BITS BLOCK_SIZE<<3
+#define BLCK_MASK (BLCK_BITS - 1)
+#define ZMAP_INDX(znr) ((znr) >> BLOCK_SIZE_BITS + 3)
+#define IMAP_INDX ZMAP_INDX
+
 #ifndef NULL
 #define NULL ((void *) 0)
 #endif
