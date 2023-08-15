@@ -11,88 +11,70 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <asm/system.h>
-#include <asm/segment.h>
 
 #include <errno.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 
 int sync_dev(int dev);
 void wait_for_keypress(void);
 
 /* set_bit uses setb, as gas doesn't recognize setc */
 #define set_bit(bitnr,addr) ({ \
-    int __res; \
+register int __res ; \
 __asm__("bt %2,%3;setb %%al":"=a" (__res):"a" (0),"r" (bitnr),"m" (*(addr))); \
 __res; })
 
-struct super_block super_block[NR_SUPER] = {};
+struct super_block super_block[NR_SUPER];
 /* this is initialized in init/main.c */
 int ROOT_DEV = 0;
 
-static inline void lock_super(struct super_block* sb)
+static void lock_super(struct super_block * sb)
 {
-    if (!sb) return;
-
 	cli();
-	while (sb->s_lock) sleep_on(&sb->s_wait);
+	while (sb->s_lock)
+		sleep_on(&(sb->s_wait));
 	sb->s_lock = 1;
 	sti();
 }
 
-static inline void unlock_super(struct super_block* sb)
+static void free_super(struct super_block * sb)
 {
-    if (!sb) return;
-
 	cli();
 	sb->s_lock = 0;
-	wake_up(&sb->s_wait);
+	wake_up(&(sb->s_wait));
 	sti();
 }
 
-static inline void wait_on_super(struct super_block* sb)
+static void wait_on_super(struct super_block * sb)
 {
-    if (!sb) return;
-    
 	cli();
-	while (sb->s_lock) sleep_on(&sb->s_wait);
+	while (sb->s_lock)
+		sleep_on(&(sb->s_wait));
 	sti();
 }
 
-static inline void free_super(struct super_block* sb)
+struct super_block * get_super(int dev)
 {
-    if (!sb) return;
+	struct super_block * s;
 
-	sb->s_dev = 0;
-    unlock_super(sb);
-}
-
-static inline bool is_super_available(struct super_block* sb)
-{
-    if (!sb) return false;
-
-	return (!sb->s_dev);
-}
-
-struct super_block* get_super(int dev)
-{
-    if (!dev) return NULL;
-
-    struct super_block* s;
-    for (s = &super_block[0]; s < &super_block[NR_SUPER]; ++s) {
-        if (s->s_dev == dev) {
-            wait_on_super(s);
-            if (s->s_dev == dev) return s;
-            s = &super_block[0];    // reset the searching process
-        }
-    }
-    return NULL;
+	if (!dev)
+		return NULL;
+	s = 0+super_block;
+	while (s < NR_SUPER+super_block)
+		if (s->s_dev == dev) {
+			wait_on_super(s);
+			if (s->s_dev == dev)
+				return s;
+			s = 0+super_block;
+		} else
+			s++;
+	return NULL;
 }
 
 void put_super(int dev)
 {
 	struct super_block * sb;
-	struct m_inode * inode;
+	/* struct m_inode * inode;*/
 	int i;
 
 	if (dev == ROOT_DEV) {
@@ -111,89 +93,75 @@ void put_super(int dev)
 		brelse(sb->s_imap[i]);
 	for(i=0;i<Z_MAP_SLOTS;i++)
 		brelse(sb->s_zmap[i]);
-	unlock_super(sb);
+	free_super(sb);
 	return;
 }
 
-static struct super_block* read_super(int dev)
+static struct super_block * read_super(int dev)
 {
-    if (!dev) return NULL;
-    /////////////////////////////////////////////////////////////////////////
-    check_disk_change(dev); // only for floppy disks, skip it now
-    /////////////////////////////////////////////////////////////////////////
-    struct super_block* s = get_super(dev);
-    if (s) return s; // if dev's super block has already been loaded
-    // Otherwise finding an empty super_block slot to store it
-    for (s = &super_block[0]; ; ++s) { 
-        if (s >= &super_block[NR_SUPER]) return NULL;
-        if (is_super_available(s)) break;
-    }
-    // if an empty slot is found
-    s->s_dev = dev;     // to mark the slot as unavailable
-    s->s_isup = NULL;
-    s->s_imount = NULL;
-    s->s_time = 0;
-    s->s_rd_only = 0;
-    s->s_dirt = 0;
-    lock_super(s);
-    /////////////////////////////////////////////////////////////////////////
-    struct buffer_head* bh = bread(dev, 1);
-    if (!bh) {
-        free_super(s);
-        return NULL;
-    }
-    //*((struct d_super_block *) s) = *((struct d_super_block *) bh->b_data);
-    copy_block((const char*) bh->b_data, 
-               (char*) s, 
-               sizeof(struct d_super_block));
-    brelse(bh);
-    /////////////////////////////////////////////////////////////////////////
-    if (s->s_magic != SUPER_MAGIC) {
-        free_super(s);
-        return NULL;
-    }
-    /////////////////////////////////////////////////////////////////////////
-    // set super_block's memory-exclusive portion
-    for (int i = 0; i < I_MAP_SLOTS; ++i) s->s_imap[i] = NULL;
-    for (int i = 0; i < Z_MAP_SLOTS; ++i) s->s_zmap[i] = NULL;
-    /////////////////////////////////////////////////////////////////////////
-    int nr_slots = s->s_imap_blocks;
-    int block = 2;  // skip the boot block & super block
-    if (nr_slots > I_MAP_SLOTS) panic("Two many i-nodes!");
-    for (int i = 0; i < nr_slots; ++i)
-        if ((s->s_imap[i] = bread(dev, block)))
-            ++block;
-        else
-            break;
-    /////////////////////////////////////////////////////////////////////////
-    nr_slots = s->s_zmap_blocks;
-    if (nr_slots > Z_MAP_SLOTS) panic("Two many zones!");
-    for (int i = 0 ; i < nr_slots; ++i)
-        if ((s->s_zmap[i] = bread(dev, block)))
-            block++;
-        else
-            break;
-    /////////////////////////////////////////////////////////////////////////
-    // now `block' should be the nr of the first i-node block
-    // otherwise, something wrong with above two precedures
-    if (block != 2 + s->s_imap_blocks + s->s_zmap_blocks) {
-        // something wrong! do cleanup
-        for(int i = 0; i < I_MAP_SLOTS; ++i) brelse(s->s_imap[i]);
-        for(int i = 0; i < Z_MAP_SLOTS; ++i) brelse(s->s_zmap[i]);
-        free_super(s);
-        return NULL;
-    }
-    /////////////////////////////////////////////////////////////////////////
-    // i-node bitmap & zone bitmap load accomplished
-    // I think the next two lines are unnecessary, 'cause they are done
-    // while disk formating.
-    /*
-    s->s_imap[0]->b_data[0] |= 1;
-    s->s_zmap[0]->b_data[0] |= 1;
-    */
-    /////////////////////////////////////////////////////////////////////////
-    unlock_super(s);
-    return s;
+	struct super_block * s;
+	struct buffer_head * bh;
+	int i,block;
+
+	if (!dev)
+		return NULL;
+	check_disk_change(dev);
+	if ((s = get_super(dev)))
+		return s;
+	for (s = 0+super_block ;; s++) {
+		if (s >= NR_SUPER+super_block)
+			return NULL;
+		if (!s->s_dev)
+			break;
+	}
+	s->s_dev = dev;
+	s->s_isup = NULL;
+	s->s_imount = NULL;
+	s->s_time = 0;
+	s->s_rd_only = 0;
+	s->s_dirt = 0;
+	lock_super(s);
+	if (!(bh = bread(dev,1))) {
+		s->s_dev=0;
+		free_super(s);
+		return NULL;
+	}
+	*((struct d_super_block *) s) =
+		*((struct d_super_block *) bh->b_data);
+	brelse(bh);
+	if (s->s_magic != SUPER_MAGIC) {
+		s->s_dev = 0;
+		free_super(s);
+		return NULL;
+	}
+	for (i=0;i<I_MAP_SLOTS;i++)
+		s->s_imap[i] = NULL;
+	for (i=0;i<Z_MAP_SLOTS;i++)
+		s->s_zmap[i] = NULL;
+	block=2;
+	for (i=0 ; i < s->s_imap_blocks ; i++)
+		if ((s->s_imap[i]=bread(dev,block)))
+			block++;
+		else
+			break;
+	for (i=0 ; i < s->s_zmap_blocks ; i++)
+		if ((s->s_zmap[i]=bread(dev,block)))
+			block++;
+		else
+			break;
+	if (block != 2+s->s_imap_blocks+s->s_zmap_blocks) {
+		for(i=0;i<I_MAP_SLOTS;i++)
+			brelse(s->s_imap[i]);
+		for(i=0;i<Z_MAP_SLOTS;i++)
+			brelse(s->s_zmap[i]);
+		s->s_dev=0;
+		free_super(s);
+		return NULL;
+	}
+	s->s_imap[0]->b_data[0] |= 1;
+	s->s_zmap[0]->b_data[0] |= 1;
+	free_super(s);
+	return s;
 }
 
 int sys_umount(char * dev_name)
@@ -273,46 +241,41 @@ int sys_mount(char * dev_name, char * dir_name, int rw_flag)
 
 void mount_root(void)
 {
-    int i, free;
+	int i,free;
+	struct super_block * p;
+	struct m_inode * mi;
 
-    if (32 != sizeof(struct d_inode)) panic("bad i-node size");
-    //////////////////////////////////////////////////////////////////////////
-    for(i = 0;i < NR_FILE; ++i) file_table[i].f_count = 0;
-    //////////////////////////////////////////////////////////////////////////
-    if (MAJOR(ROOT_DEV) == 2) { // floopy
-        printk("Insert root floppy and press ENTER");
-        wait_for_keypress();    // TO-READ
-    }
-    //////////////////////////////////////////////////////////////////////////
-    // They are initialized to 0 when declared, so the next lines are uesless
-    /*
-    for(p = &super_block[0]; p < &super_block[NR_SUPER]; ++p) {
-        p->s_dev = 0;
-        p->s_lock = 0;
-        p->s_wait = NULL;
-    }
-    */
-    //////////////////////////////////////////////////////////////////////////
-    struct super_block* p = read_super(ROOT_DEV);
-    if (!p) panic("Unable to mount root");
-    //////////////////////////////////////////////////////////////////////////
-    struct m_inode* mi = iget(ROOT_DEV,ROOT_INO);
-    if (!mi) panic("Unable to read root i-node");
-    //////////////////////////////////////////////////////////////////////////
-    mi->i_count += 3 ;	/* NOTE! it is logically used 4 times, not 1 */
-    p->s_isup = p->s_imount = mi;
-    current->pwd = mi;
-    current->root = mi;
-    free=0;
-    i=p->s_nzones;
-    while (-- i >= 0)
-        if (!set_bit(i&8191,p->s_zmap[i>>13]->b_data))
-            free++;
-    printk("%d/%d free blocks\n\r",free,p->s_nzones);
-    free=0;
-    i=p->s_ninodes+1;
-    while (-- i >= 0)
-        if (!set_bit(i&8191,p->s_imap[i>>13]->b_data))
-            free++;
-    printk("%d/%d free inodes\n\r",free,p->s_ninodes);
+	if (32 != sizeof (struct d_inode))
+		panic("bad i-node size");
+	for(i=0;i<NR_FILE;i++)
+		file_table[i].f_count=0;
+	if (MAJOR(ROOT_DEV) == 2) {
+		printk("Insert root floppy and press ENTER");
+		wait_for_keypress();
+	}
+	for(p = &super_block[0] ; p < &super_block[NR_SUPER] ; p++) {
+		p->s_dev = 0;
+		p->s_lock = 0;
+		p->s_wait = NULL;
+	}
+	if (!(p=read_super(ROOT_DEV)))
+		panic("Unable to mount root");
+	if (!(mi=iget(ROOT_DEV,ROOT_INO)))
+		panic("Unable to read root i-node");
+	mi->i_count += 3 ;	/* NOTE! it is logically used 4 times, not 1 */
+	p->s_isup = p->s_imount = mi;
+	current->pwd = mi;
+	current->root = mi;
+	free=0;
+	i=p->s_nzones;
+	while (-- i >= 0)
+		if (!set_bit(i&8191,p->s_zmap[i>>13]->b_data))
+			free++;
+	printk("%d/%d free blocks\n\r",free,p->s_nzones);
+	free=0;
+	i=p->s_ninodes+1;
+	while (-- i >= 0)
+		if (!set_bit(i&8191,p->s_imap[i>>13]->b_data))
+			free++;
+	printk("%d/%d free inodes\n\r",free,p->s_ninodes);
 }
