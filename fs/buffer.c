@@ -91,7 +91,8 @@ static inline void do_sync(int dev)
 int sync_dev(int dev)
 {
     //////////////////////////////////////////////////////////////////////////
-    do_sync(dev);   // why we have to do this ahead duplicately?
+    //Guess: the reason do_sync() twice is to free buffs for sync_inodes() 
+    do_sync(dev); 
     sync_inodes();
     do_sync(dev);
     //////////////////////////////////////////////////////////////////////////
