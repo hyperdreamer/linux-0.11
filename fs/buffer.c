@@ -76,6 +76,14 @@ int sys_sync(void)
 	return 0;
 }
 
+// no check bh validity! be careful!
+static inline void sync_buffer(struct buffer_head* bh)
+{
+    wait_on_buffer(bh); // no need to lock strictly
+    if (bh->b_dirt) ll_rw_block(WRITE, bh);
+}
+
+// no check device validity! Be careful
 static inline void do_sync(int dev) 
 {
     struct buffer_head* bh = start_buffer;
@@ -88,6 +96,7 @@ static inline void do_sync(int dev)
     }
 }
 
+// no check device validity! Be careful
 int sync_dev(int dev)
 {
     //////////////////////////////////////////////////////////////////////////
@@ -275,7 +284,10 @@ repeat:
     } // the result is still unreliable.
     //////////////////////////////////////////////////////////////////////////
     while (bh->b_dirt) {
-        sync_dev(bh->b_dev);
+        //sync_dev(bh->b_dev);  // sync the whole device is too much
+        // Furthermore, this helps avoid an elusive circular dependency:
+        // write_inode()
+        sync_buffer(bh);
         wait_on_buffer(bh);
         if (bh->b_count) goto repeat;
     }
@@ -289,8 +301,11 @@ repeat:
     /* OK, FINALLY we know that this buffer is the only one of it's kind, */
     /* NOTE!! While we slept waiting for this block, somebody else might */
     /* already have added "this" block to the cache. check it */
-    if (find_buffer(dev,block))
+    if (find_buffer(dev,block)) {
+        unlock_buffer(bh);
         goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
     bh->b_count = 1;
     bh->b_dirt = 0;
     bh->b_uptodate = 0;
@@ -336,11 +351,14 @@ struct buffer_head* bread(int dev, int block)
 }
 
 #define COPYBLK(from,to) \
-__asm__("cld\n\t" \
-	"rep\n\t" \
-	"movsl\n\t" \
-	::"c" (BLOCK_SIZE/4),"S" (from),"D" (to) \
-	)
+    __asm__ ("cld\n\t" \
+             "rep movsl\n\t" \
+             : \
+             : \
+             "c" (BLOCK_SIZE/4), \
+             "S" (from), \
+             "D" (to) \
+            )
 
 /*
  * bread_page reads four buffers into memory at the desired address. It's
