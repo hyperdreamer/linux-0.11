@@ -118,7 +118,7 @@ static void make_request(int major, int rw, struct buffer_head* bh)
         if (bh->b_lock) return;
         rw = (rw == READA) ? READ : WRITE;
     }
-
+    //////////////////////////////////////////////////////////////////////////
     if (rw != READ && rw != WRITE)
         panic("Bad block dev command, must be R/W/RA/WA");
     //////////////////////////////////////////////////////////////////////////
@@ -128,7 +128,7 @@ static void make_request(int major, int rw, struct buffer_head* bh)
         unlock_buffer(bh);
         return;
     }
-
+    //////////////////////////////////////////////////////////////////////////
     /* we don't allow the write-requests to fill up the queue completely:
      * we want some room for reads: they take precedence. The last third
      * of the requests are only for reads.
@@ -166,11 +166,13 @@ repeat:
 void ll_rw_block(int rw, struct buffer_head* bh)
 {
     unsigned int major = MAJOR(bh->b_dev);  // device class: floppy, hd, ...
+    //////////////////////////////////////////////////////////////////////////
     // blk_dev[major].request_fn ??? the driver? TO-READ
     if (major >= NR_BLK_DEV || !(blk_dev[major].request_fn)) {
         printk("Trying to read nonexistent block-device\n\r");
         return;
     }
+    //////////////////////////////////////////////////////////////////////////
     make_request(major, rw, bh);
 }
 
