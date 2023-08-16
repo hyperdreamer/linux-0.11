@@ -13,9 +13,6 @@
 
 struct m_inode inode_table[NR_INODE]={};
 
-static void read_inode(struct m_inode * inode);
-static void write_inode(struct m_inode * inode);
-
 static inline void wait_on_inode(struct m_inode* inode)
 {
     cli();
@@ -37,6 +34,64 @@ static inline void unlock_inode(struct m_inode* inode)
     inode->i_lock=0;
     wake_up(&inode->i_wait);
     sti();
+}
+
+// Only reding the inode's disk-exclusive info. 
+static void read_inode(struct m_inode* inode)
+{
+    lock_inode(inode);
+    struct super_block* sb = get_super_safely(inode->i_dev);
+    if (!sb) panic("trying to read inode without dev");
+    //////////////////////////////////////////////////////////////////////////
+    int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
+                + (inode->i_num-1)/INODES_PER_BLOCK;
+    //////////////////////////////////////////////////////////////////////////
+    // unlike, writ_inode(), we have to use bread() to do real bread from
+    // hard disks
+    struct buffer_head* bh = bread(inode->i_dev, block);
+    if (!bh) panic("read_inode(): unable to read i-node block");
+    //////////////////////////////////////////////////////////////////////////
+    *(struct d_inode *)inode =
+        ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK];
+    //////////////////////////////////////////////////////////////////////////
+    brelse(bh); // The reading procedure doesn't occupy the inode.
+    unlock_inode(inode);
+}
+
+static void write_inode(struct m_inode* inode)
+{
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    lock_inode(inode);
+    if (!inode->i_dirt || !inode->i_dev) {
+        unlock_inode(inode);
+        return;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    // modified by Henry
+    struct super_block* sb = get_super_safely(inode->i_dev);
+    if (!sb) panic("trying to write inode without device");
+    //////////////////////////////////////////////////////////////////////////
+    int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
+                + (inode->i_num-1)/INODES_PER_BLOCK;
+    //////////////////////////////////////////////////////////////////////////
+    // the old code creates a dependency circle, not a good idea
+    struct buffer_head* bh = bread(inode->i_dev, block);
+    //struct buffer_head* bh = get_hash_table(inode->i_dev, block);
+    if (!bh) panic("write_inode(): unable to find i-node!");
+    //////////////////////////////////////////////////////////////////////////
+    ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK] =
+        *(struct d_inode *)inode;
+    //////////////////////////////////////////////////////////////////////////
+    bh->b_dirt = 1;
+    inode->i_dirt = 0;
+    //////////////////////////////////////////////////////////////////////////
+    // get_hash_table() has incremented bh->b_count, we have to do this
+    brelse(bh); 
+    //////////////////////////////////////////////////////////////////////////
+    unlock_inode(inode);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 }
 
 void invalidate_inodes(int dev)
@@ -287,62 +342,3 @@ struct m_inode * iget(int dev,int nr)
 	return inode;
 }
 
-// Only reding the inode's disk-exclusive info. 
-static void read_inode(struct m_inode* inode)
-{
-    struct buffer_head * bh;
-
-    lock_inode(inode);
-    struct super_block* sb = get_super_safely(inode->i_dev);
-    if (!sb) panic("trying to read inode without dev");
-    //////////////////////////////////////////////////////////////////////////
-    int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
-                + (inode->i_num-1)/INODES_PER_BLOCK;
-    //////////////////////////////////////////////////////////////////////////
-    // unlike, writ_inode(), we have to use bread() to do real bread from
-    // hard disks
-    struct buffer_head* bh = bread(inode->i_dev, block);
-    if (!bh) panic("unable to read i-node block");
-    //////////////////////////////////////////////////////////////////////////
-    *(struct d_inode *)inode =
-        ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK];
-    //////////////////////////////////////////////////////////////////////////
-    brelse(bh); // The reading procedure doesn't occupy the inode.
-    unlock_inode(inode);
-}
-
-static void write_inode(struct m_inode* inode)
-{
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-    lock_inode(inode);
-    if (!inode->i_dirt || !inode->i_dev) {
-        unlock_inode(inode);
-        return;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    // modified by Henry
-    struct super_block* sb = get_super_safely(inode->i_dev);
-    if (!sb) panic("trying to write inode without device");
-    //////////////////////////////////////////////////////////////////////////
-    int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
-                + (inode->i_num-1)/INODES_PER_BLOCK;
-    //////////////////////////////////////////////////////////////////////////
-    // the old code creates a dependency circle, not a good idea
-    //struct buffer_head* bh = bread(inode->i_dev, block);
-    struct buffer_head* bh = get_hash_table(inode->i_dev, block);
-    if (!bh) panic("write_inode(): unable to find i-node in memory!");
-    //////////////////////////////////////////////////////////////////////////
-    ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK] =
-        *(struct d_inode *)inode;
-    //////////////////////////////////////////////////////////////////////////
-    bh->b_dirt = 1;
-    inode->i_dirt = 0;
-    //////////////////////////////////////////////////////////////////////////
-    // get_hash_table() has incremented bh->b_count, we have to do this
-    brelse(bh); 
-    //////////////////////////////////////////////////////////////////////////
-    unlock_inode(inode);
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-}

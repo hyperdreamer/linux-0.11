@@ -61,7 +61,7 @@ static inline void wait_on_super(struct super_block* sb)
 }
 
 // No lock, No check! Use it at your own risk
-static inline struct super_block* find_super_ahead(int dev)
+static inline struct super_block* find_super_directly(int dev)
 {
     //if (!dev) return NULL;
     struct super_block* s;
@@ -72,7 +72,7 @@ static inline struct super_block* find_super_ahead(int dev)
 }
 
 // No lock, No check! Use it at your own risk
-static inline struct super_block* get_free_super_slot_safe()
+static inline struct super_block* get_free_super_slot_safely()
 {
     lock_st();
     //////////////////////////////////////////////////////////////////////////
@@ -87,12 +87,12 @@ static inline struct super_block* get_free_super_slot_safe()
     return NULL;
 }
 
-struct super_block* get_super_safe(int dev)
+struct super_block* get_super_safely(int dev)
 {
     if (!dev) return NULL;
     //////////////////////////////////////////////////////////////////////////
     lock_st();
-    struct super_block* s = find_super_ahead(dev);
+    struct super_block* s = find_super_directly(dev);
     if (s) {
         unlock_st();
         return s;
@@ -146,17 +146,17 @@ void put_super(int dev)
 	return;
 }
 
-static struct super_block* read_super_safe(int dev)
+static struct super_block* read_super_safely(int dev)
 {
     if (!dev) return NULL;
     //////////////////////////////////////////////////////////////////////////
 repeat:
     check_disk_change(dev);     // TO_READ
     //////////////////////////////////////////////////////////////////////////
-    struct super_block* s = get_super_safe(dev);
+    struct super_block* s = get_super_safely(dev);
     if (s) return s;
     //////////////////////////////////////////////////////////////////////////
-    s = get_free_super_slot_safe();
+    s = get_free_super_slot_safely();
     //////////////////////////////////////////////////////////////////////////
 #ifdef DEBUG
     if (s->s_lock) {
@@ -164,12 +164,16 @@ repeat:
         printkc("An Interrupt must've happened!\n");
     }
 #endif
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
     lock_super(s);
     if (s->s_dev) { // it has been taken
         unlock_super(s);
+    //////////////////////////////////////////////////////////////////////////
 #ifdef DEBUG
-        printkc("Go back to get_super_safe() again!\n");
+        printkc("Go back to get_super_safely() again!\n");
 #endif
+    //////////////////////////////////////////////////////////////////////////
         goto repeat;
     }
     s->s_dev = dev;
@@ -180,15 +184,15 @@ repeat:
     s->s_dirt = 0;
     //////////////////////////////////////////////////////////////////////////
     // lock super block s & possible hang on bread: possible deadlock?
-    struct buffer_head* bh = bread(dev, 1); // interrupts re-enabled by it
+    // bread() return value is unreliable, Need to check it
+    struct buffer_head* bh = bread(dev, 1);
     if (!bh) {
         s->s_dev = 0;
         unlock_super(s);
         return NULL;
     }
     //////////////////////////////////////////////////////////////////////////
-    *((struct d_super_block *) s) =
-        *((struct d_super_block *) bh->b_data);
+    *((struct d_super_block *) s) = *((struct d_super_block *) bh->b_data);
     brelse(bh);
     //////////////////////////////////////////////////////////////////////////
     if (s->s_magic != SUPER_MAGIC) {
@@ -226,6 +230,7 @@ repeat:
     s->s_imap[0]->b_data[0] |= 1;   // make sure i-node 0 is not used
     s->s_zmap[0]->b_data[0] |= 1;   // make sure zone 0 is used by the root
     unlock_super(s);
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     return s;
 }
@@ -416,7 +421,7 @@ void mount_root(void)
     */
     //////////////////////////////////////////////////////////////////////////
     //struct super_block* p = read_super(ROOT_DEV);
-    struct super_block* p = read_super_safe(ROOT_DEV);
+    struct super_block* p = read_super_safely(ROOT_DEV);
     if (!p) panic("Unable to mount root");
     //////////////////////////////////////////////////////////////////////////
     struct m_inode* mi = iget(ROOT_DEV, ROOT_INO);

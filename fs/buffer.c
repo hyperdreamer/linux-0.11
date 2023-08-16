@@ -30,18 +30,35 @@ extern int end;
 extern void put_super(int);
 extern void invalidate_inodes(int);
 
-struct buffer_head * start_buffer = (struct buffer_head *) &end;
-struct buffer_head * hash_table[NR_HASH];
-static struct buffer_head * free_list;
-static struct task_struct * buffer_wait = NULL;
+struct buffer_head* start_buffer = (struct buffer_head *) &end;
+struct buffer_head* hash_table[NR_HASH];
+static struct buffer_head* free_list;
+static struct task_struct* buffer_wait = NULL;
 int NR_BUFFERS = 0;
 
-static inline void wait_on_buffer(struct buffer_head * bh)
+static inline void wait_on_buffer(struct buffer_head* bh)
 {
 	cli();
-	while (bh->b_lock)
-		sleep_on(&bh->b_wait);
+	while (bh->b_lock) sleep_on(&bh->b_wait);
 	sti();
+}
+
+static inline void lock_buffer(struct buffer_head* bh)
+{
+	cli();
+	while (bh->b_lock) sleep_on(&bh->b_wait);
+	bh->b_lock = 1;
+	sti();
+}
+
+static inline void unlock_buffer(struct buffer_head* bh)
+{
+	cli();
+	if (!bh->b_lock) printk("buffer.c: buffer not locked\n");
+    //////////////////////////////////////////////////////////////////////////
+	bh->b_lock = 0;
+	wake_up(&bh->b_wait);
+    sti();
 }
 
 int sys_sync(void)
@@ -59,29 +76,26 @@ int sys_sync(void)
 	return 0;
 }
 
+static inline void do_sync(int dev) 
+{
+    struct buffer_head* bh = start_buffer;
+    for (register int i = 0; i < NR_BUFFERS; ++i, ++bh) {
+        if (bh->b_dev != dev) continue;
+        //////////////////////////////////////////////////////////////////////
+        wait_on_buffer(bh); // no need to lock strictly
+        if (bh->b_dev == dev && bh->b_dirt) ll_rw_block(WRITE, bh);
+        //////////////////////////////////////////////////////////////////////
+    }
+}
+
 int sync_dev(int dev)
 {
-	int i;
-	struct buffer_head * bh;
-
-	bh = start_buffer;
-	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
-		if (bh->b_dev != dev)
-			continue;
-		wait_on_buffer(bh);
-		if (bh->b_dev == dev && bh->b_dirt)
-			ll_rw_block(WRITE,bh);
-	}
-	sync_inodes();
-	bh = start_buffer;
-	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
-		if (bh->b_dev != dev)
-			continue;
-		wait_on_buffer(bh);
-		if (bh->b_dev == dev && bh->b_dirt)
-			ll_rw_block(WRITE,bh);
-	}
-	return 0;
+    //////////////////////////////////////////////////////////////////////////
+    do_sync(dev);   // why we have to do this ahead duplicately?
+    sync_inodes();
+    do_sync(dev);
+    //////////////////////////////////////////////////////////////////////////
+    return 0;
 }
 
 static void inline invalidate_buffers(int dev)
@@ -166,14 +180,16 @@ static inline void insert_into_queues(struct buffer_head * bh)
 	bh->b_next->b_prev = bh;
 }
 
-static struct buffer_head * find_buffer(int dev, int block)
+// No lock! The return value is unreliable!
+static struct buffer_head* find_buffer(int dev, int block)
 {		
-	struct buffer_head * tmp;
-
-	for (tmp = hash(dev,block) ; tmp != NULL ; tmp = tmp->b_next)
-		if (tmp->b_dev==dev && tmp->b_blocknr==block)
-			return tmp;
-	return NULL;
+    struct buffer_head* tmp = hash(dev, block);
+    while (tmp) {
+        if (tmp->b_dev == dev && tmp->b_blocknr == block)
+            return tmp;
+        tmp = tmp->b_next;
+    }
+    return NULL;
 }
 
 /*
@@ -185,19 +201,41 @@ static struct buffer_head * find_buffer(int dev, int block)
  */
 struct buffer_head * get_hash_table(int dev, int block)
 {
-	struct buffer_head * bh;
-
-	for (;;) {
-		if (!(bh=find_buffer(dev,block)))
-			return NULL;
-		bh->b_count++;
-		wait_on_buffer(bh);
-		if (bh->b_dev == dev && bh->b_blocknr == block)
-			return bh;
-		bh->b_count--;
-	}
+    for (;;) {
+        struct buffer_head* bh = find_buffer(dev, block);
+        if (!bh) return NULL;
+        //////////////////////////////////////////////////////////////////////
+        // make sure the return value is reliable, since it cannot be freed
+        // anymore
+        ++bh->b_count;
+        //////////////////////////////////////////////////////////////////////
+        wait_on_buffer(bh);
+        if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
+        // even the bh is valid after wait, the result is still
+        // unreliable, since an interrupt might happen
+        //////////////////////////////////////////////////////////////////////
+        --bh->b_count;  // make sure it can be freed again
+    }
 }
 
+// No lock! Use it cautiously!
+static inline struct buffer_head* find_free_buffer()
+{
+#define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
+
+    struct buffer_head* bh = NULL;
+    struct buffer_head* tmp = free_list;
+    do {
+        if (tmp->b_count) continue;
+        if (!bh || BADNESS(tmp)<BADNESS(bh)) {
+            bh = tmp;
+            if (!BADNESS(tmp)) return bh;
+        }
+        /* and repeat until we find something good */
+    } while ((tmp = tmp->b_next_free) != free_list);
+    //////////////////////////////////////////////////////////////////////////
+    return NULL;
+}
 /*
  * Ok, this is getblk, and it isn't very clear, again to hinder
  * race-conditions. Most of the code is seldom used, (ie repeating),
@@ -205,77 +243,90 @@ struct buffer_head * get_hash_table(int dev, int block)
  *
  * The algoritm is changed: hopefully better, and an elusive bug removed.
  */
-#define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
-struct buffer_head * getblk(int dev,int block)
+// Modified by Henry
+struct buffer_head* getblk(int dev, int block)
 {
-	struct buffer_head * tmp, * bh;
+    struct buffer_head* tmp;
 
 repeat:
-	if ((bh = get_hash_table(dev,block)))
-		return bh;
-	tmp = free_list;
-	do {
-		if (tmp->b_count)
-			continue;
-		if (!bh || BADNESS(tmp)<BADNESS(bh)) {
-			bh = tmp;
-			if (!BADNESS(tmp))
-				break;
-		}
-/* and repeat until we find something good */
-	} while ((tmp = tmp->b_next_free) != free_list);
-	if (!bh) {
-		sleep_on(&buffer_wait);
-		goto repeat;
-	}
-	wait_on_buffer(bh);
-	if (bh->b_count)
-		goto repeat;
-	while (bh->b_dirt) {
-		sync_dev(bh->b_dev);
-		wait_on_buffer(bh);
-		if (bh->b_count)
-			goto repeat;
-	}
-/* NOTE!! While we slept waiting for this block, somebody else might */
-/* already have added "this" block to the cache. check it */
-	if (find_buffer(dev,block))
-		goto repeat;
-/* OK, FINALLY we know that this buffer is the only one of it's kind, */
-/* and that it's unused (b_count=0), unlocked (b_lock=0), and clean */
-	bh->b_count=1;
-	bh->b_dirt=0;
-	bh->b_uptodate=0;
-	remove_from_queues(bh);
-	bh->b_dev=dev;
-	bh->b_blocknr=block;
-	insert_into_queues(bh);
-	return bh;
+    struct buffer_head* bh = get_hash_table(dev, block); // reliable
+    //////////////////////////////////////////////////////////////////////////
+    if (bh) return bh;  // if in hash table directly return it! reliable
+    //////////////////////////////////////////////////////////////////////////
+    // if the block is not in buffer, you have to find a free buffer to read
+    // into.
+    bh = find_free_buffer();    // not reliable
+    //////////////////////////////////////////////////////////////////////////
+    // if no free buffer exists, have to wait for one.
+    if (!bh) {
+        sleep_on(&buffer_wait);
+        goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    // Finally we have a free candiate! But we have to check
+    wait_on_buffer(bh);
+    if (bh->b_count) {
+#ifdef DEBUG
+        printkc("During sleep, the empty buffer has been taken!\n");
+        printkc("Got back to search again\n");
+#endif
+        goto repeat;
+    } // the result is still unreliable.
+    //////////////////////////////////////////////////////////////////////////
+    while (bh->b_dirt) {
+        sync_dev(bh->b_dev);
+        wait_on_buffer(bh);
+        if (bh->b_count) goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    lock_buffer(bh);
+    if (bh->b_count) {  // lock & check to ensure it is reliable
+        unlock_buffer(bh);
+        goto repeat;
+    }
+    /* OK, FINALLY we know that this buffer is the only one of it's kind, */
+    /* NOTE!! While we slept waiting for this block, somebody else might */
+    /* already have added "this" block to the cache. check it */
+    if (find_buffer(dev,block))
+        goto repeat;
+    bh->b_count = 1;
+    bh->b_dirt = 0;
+    bh->b_uptodate = 0;
+    remove_from_queues(bh);
+    bh->b_dev = dev;
+    bh->b_blocknr = block;
+    insert_into_queues(bh);
+    unlock_buffer(bh);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    return bh;
 }
 
-void brelse(struct buffer_head * buf)
+void brelse(struct buffer_head* buf)
 {
-	if (!buf)
-		return;
+	if (!buf) return;
+    //////////////////////////////////////////////////////////////////////////
 	wait_on_buffer(buf);
-	if (!(buf->b_count--))
-		panic("Trying to free free buffer");
+	if (!(buf->b_count--)) panic("Trying to free free buffer");
+    // if buf->b_count ==0 finally, we have to wake up all processes
+    // waiting on this buffer
 	wake_up(&buffer_wait);
+    //////////////////////////////////////////////////////////////////////////
 }
 
 /*
  * bread() reads a specified block and returns the buffer that contains
  * it. It returns NULL if the block was unreadable.
  */
-struct buffer_head * bread(int dev,int block)
+struct buffer_head* bread(int dev, int block)
 {
-	struct buffer_head * bh;
-
-	if (!(bh=getblk(dev,block)))
-		panic("bread: getblk returned NULL\n");
-	if (bh->b_uptodate)
-		return bh;
-	ll_rw_block(READ,bh);
+	struct buffer_head* bh = getblk(dev, block);
+	if (!bh) panic("bread: getblk returned NULL\n");
+    //////////////////////////////////////////////////////////////////////////
+	if (bh->b_uptodate) return bh;  // no need to write
+    //////////////////////////////////////////////////////////////////////////
+	ll_rw_block(READ, bh);
 	wait_on_buffer(bh);
 	if (bh->b_uptodate)
 		return bh;
