@@ -76,12 +76,13 @@ static inline struct super_block* get_free_super_slot_safely()
 {
     lock_st();
     //////////////////////////////////////////////////////////////////////////
-    struct super_block* s;
-    for (s = &super_block[0]; s < &super_block[NR_SUPER]; ++s)
+    struct super_block* s = &super_block[0];
+    do {
         if (!s->s_dev) {
             unlock_st();
             return s;
         }
+    } while (++s < &super_block[NR_SUPER]);
     //////////////////////////////////////////////////////////////////////////
     unlock_st();
     return NULL;
