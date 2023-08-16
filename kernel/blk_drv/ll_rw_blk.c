@@ -51,9 +51,9 @@ static inline void lock_buffer(struct buffer_head* bh)
 
 static inline void unlock_buffer(struct buffer_head* bh)
 {
+	cli();
 	if (!bh->b_lock) printk("ll_rw_block.c: buffer not locked\n");
     //////////////////////////////////////////////////////////////////////////
-	cli();    // is cli uncessary for unlocking?
 	bh->b_lock = 0;
 	wake_up(&bh->b_wait);
     sti();
