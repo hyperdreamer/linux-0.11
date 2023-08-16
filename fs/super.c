@@ -16,25 +16,28 @@
 #include <sys/stat.h>
 
 int ROOT_DEV = 0; /* this is initialized in init/main.c */
+
 struct super_block super_block[NR_SUPER] = {};
+static bool st_lock = false;
+static struct task_struct* st_wait = NULL;
 
-/* set_bit uses setb, as gas doesn't recognize setc */
-#define bit_set(bitnr, addr) \
-({ \
-    register int __res ; \
-    __asm__ ("btl %2, %3\n\t" \
-             "setb %%al" \
-             : \
-             "=a" (__res) \
-             : \
-             "a" (0), \
-             "r" (bitnr), \
-             "m" (*(addr)) \
-            ); \
-    __res; \
-})
+static inline void lock_st()
+{
+    cli();
+    while (st_lock) sleep_on(&st_wait);
+    st_lock = true;
+    sti();
+}
 
-static void lock_super(struct super_block* sb)
+static inline void unlock_st()
+{
+    cli();
+    st_lock = false;
+    wake_up(&st_wait);
+    sti();
+}
+
+static inline void lock_super(struct super_block* sb)
 {
     cli();
     while (sb->s_lock) sleep_on(&(sb->s_wait));
@@ -42,7 +45,7 @@ static void lock_super(struct super_block* sb)
     sti();
 }
 
-static void unlock_super(struct super_block* sb)
+static inline void unlock_super(struct super_block* sb)
 {
     cli();
     sb->s_lock = 0;
@@ -50,11 +53,53 @@ static void unlock_super(struct super_block* sb)
     sti();
 }
 
-static void wait_on_super(struct super_block* sb)
+static inline void wait_on_super(struct super_block* sb)
 {
     cli();
     while (sb->s_lock) sleep_on(&(sb->s_wait));
     sti();
+}
+
+// No lock, No check! Use it at your own risk
+static inline struct super_block* find_super_ahead(int dev)
+{
+    //if (!dev) return NULL;
+    struct super_block* s;
+    for (s = &super_block[0]; s < &super_block[NR_SUPER]; ++s)
+        if (s->s_dev == dev) return s; 			
+    //////////////////////////////////////////////////////////////////////////
+    return NULL;
+}
+
+// No lock, No check! Use it at your own risk
+static inline struct super_block* get_free_super_slot_safe()
+{
+    lock_st();
+    //////////////////////////////////////////////////////////////////////////
+    struct super_block* s;
+    for (s = &super_block[0]; s < &super_block[NR_SUPER]; ++s)
+        if (!s->s_dev) {
+            unlock_st();
+            return s;
+        }
+    //////////////////////////////////////////////////////////////////////////
+    unlock_st();
+    return NULL;
+}
+
+struct super_block* get_super_safe(int dev)
+{
+    if (!dev) return NULL;
+    //////////////////////////////////////////////////////////////////////////
+    lock_st();
+    struct super_block* s = find_super_ahead(dev);
+    if (s) {
+        unlock_st();
+        return s;
+    }
+    unlock_st();
+    //////////////////////////////////////////////////////////////////////////
+    return NULL;
 }
 
 struct super_block* get_super(int dev)
@@ -101,6 +146,90 @@ void put_super(int dev)
 	return;
 }
 
+static struct super_block* read_super_safe(int dev)
+{
+    if (!dev) return NULL;
+    //////////////////////////////////////////////////////////////////////////
+repeat:
+    check_disk_change(dev);     // TO_READ
+    //////////////////////////////////////////////////////////////////////////
+    struct super_block* s = get_super_safe(dev);
+    if (s) return s;
+    //////////////////////////////////////////////////////////////////////////
+    s = get_free_super_slot_safe();
+    //////////////////////////////////////////////////////////////////////////
+#ifdef DEBUG
+    if (s->s_lock) {
+        printkc("Free super block should not be locked!\n");
+        printkc("An Interrupt must've happened!\n");
+    }
+#endif
+    lock_super(s);
+    if (s->s_dev) { // it has been taken
+        unlock_super(s);
+#ifdef DEBUG
+        printkc("Go back to get_super_safe() again!\n");
+#endif
+        goto repeat;
+    }
+    s->s_dev = dev;
+    s->s_isup = NULL;
+    s->s_imount = NULL;
+    s->s_time = 0;
+    s->s_rd_only = 0;
+    s->s_dirt = 0;
+    //////////////////////////////////////////////////////////////////////////
+    // lock super block s & possible hang on bread: possible deadlock?
+    struct buffer_head* bh = bread(dev, 1); // interrupts re-enabled by it
+    if (!bh) {
+        s->s_dev = 0;
+        unlock_super(s);
+        return NULL;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    *((struct d_super_block *) s) =
+        *((struct d_super_block *) bh->b_data);
+    brelse(bh);
+    //////////////////////////////////////////////////////////////////////////
+    if (s->s_magic != SUPER_MAGIC) {
+        s->s_dev = 0;
+        unlock_super(s);
+        return NULL;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    register int i;
+    for (i = 0; i < I_MAP_SLOTS; ++i) s->s_imap[i] = NULL;
+    for (i = 0; i < Z_MAP_SLOTS; ++i) s->s_zmap[i] = NULL;
+    //////////////////////////////////////////////////////////////////////////
+    int block = 2; // boot block & super block
+    for (i = 0; i < s->s_imap_blocks; ++i)
+        if ((s->s_imap[i] = bread(dev, block)))
+            ++block;
+        else
+            break;
+    //////////////////////////////////////////////////////////////////////////
+    for (i = 0 ; i < s->s_zmap_blocks; i++)
+        if ((s->s_zmap[i] = bread(dev, block)))
+            ++block;
+        else
+            break;
+    //////////////////////////////////////////////////////////////////////////
+    // something wrong with the super block read
+    if (block != 2 + s->s_imap_blocks + s->s_zmap_blocks) {
+        for(i = 0; i < I_MAP_SLOTS; ++i) brelse(s->s_imap[i]);
+        for(i = 0; i < Z_MAP_SLOTS; ++i) brelse(s->s_zmap[i]);
+        s->s_dev = 0;
+        unlock_super(s);
+        return NULL;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    s->s_imap[0]->b_data[0] |= 1;   // make sure i-node 0 is not used
+    s->s_zmap[0]->b_data[0] |= 1;   // make sure zone 0 is used by the root
+    unlock_super(s);
+    //////////////////////////////////////////////////////////////////////////
+    return s;
+}
+
 static struct super_block* read_super(int dev)
 {
     if (!dev) return NULL;
@@ -116,9 +245,7 @@ repeat:
         if (!s->s_dev) break;
     }
     //////////////////////////////////////////////////////////////////////////
-#ifdef DEBG
     if (s->s_lock) panic("Free super block should not be locked!\n");
-#endif
     lock_super(s);
     s->s_dev = dev;
     s->s_isup = NULL;
@@ -251,6 +378,22 @@ int sys_mount(char * dev_name, char * dir_name, int rw_flag)
 	return 0;			/* we do that in umount */
 }
 
+/* set_bit uses setb, as gas doesn't recognize setc */
+#define bit_set(bitnr, addr) \
+    ({ \
+        int __res ; \
+        __asm__ ("btl %2, %3\n\t" \
+                 "setb %%al" \
+                 : \
+                 "=a" (__res) \
+                 : \
+                 "a" (0), \
+                 "r" (bitnr), \
+                 "m" (*(addr)) \
+                ); \
+        __res; \
+    })
+
 void mount_root(void)
 {
     int i;
@@ -272,7 +415,8 @@ void mount_root(void)
     }
     */
     //////////////////////////////////////////////////////////////////////////
-    struct super_block* p = read_super(ROOT_DEV);
+    //struct super_block* p = read_super(ROOT_DEV);
+    struct super_block* p = read_super_safe(ROOT_DEV);
     if (!p) panic("Unable to mount root");
     //////////////////////////////////////////////////////////////////////////
     struct m_inode* mi = iget(ROOT_DEV, ROOT_INO);
