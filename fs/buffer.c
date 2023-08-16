@@ -30,9 +30,9 @@ extern int end;
 extern void put_super(int);
 extern void invalidate_inodes(int);
 
-struct buffer_head* start_buffer = (struct buffer_head *) &end;
-struct buffer_head* hash_table[NR_HASH];
-static struct buffer_head* free_list;
+struct buffer_head* start_buffer = (struct buffer_head*) &end;
+struct buffer_head* hash_table[NR_HASH] = {};
+static struct buffer_head* free_list = NULL;
 static struct task_struct* buffer_wait = NULL;
 int NR_BUFFERS = 0;
 
@@ -61,21 +61,6 @@ static inline void unlock_buffer(struct buffer_head* bh)
     sti();
 }
 
-int sys_sync(void)
-{
-	int i;
-	struct buffer_head * bh;
-
-	sync_inodes();		/* write out inodes into buffers */
-	bh = start_buffer;
-	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
-		wait_on_buffer(bh);
-		if (bh->b_dirt)
-			ll_rw_block(WRITE,bh);
-	}
-	return 0;
-}
-
 // no check bh validity! be careful!
 static inline void sync_buffer(struct buffer_head* bh)
 {
@@ -94,18 +79,6 @@ static inline void do_sync(int dev)
         if (bh->b_dev == dev && bh->b_dirt) ll_rw_block(WRITE, bh);
         //////////////////////////////////////////////////////////////////////
     }
-}
-
-// no check device validity! Be careful
-int sync_dev(int dev)
-{
-    //////////////////////////////////////////////////////////////////////////
-    //Guess: the reason do_sync() twice is to free buffs for sync_inodes() 
-    do_sync(dev); 
-    sync_inodes();
-    do_sync(dev);
-    //////////////////////////////////////////////////////////////////////////
-    return 0;
 }
 
 static void inline invalidate_buffers(int dev)
@@ -202,32 +175,6 @@ static struct buffer_head* find_buffer(int dev, int block)
     return NULL;
 }
 
-/*
- * Why like this, I hear you say... The reason is race-conditions.
- * As we don't lock buffers (unless we are readint them, that is),
- * something might happen to it while we sleep (ie a read-error
- * will force it bad). This shouldn't really happen currently, but
- * the code is ready.
- */
-struct buffer_head * get_hash_table(int dev, int block)
-{
-    for (;;) {
-        struct buffer_head* bh = find_buffer(dev, block);
-        if (!bh) return NULL;
-        //////////////////////////////////////////////////////////////////////
-        // make sure the return value is reliable, since it cannot be freed
-        // anymore
-        ++bh->b_count;
-        //////////////////////////////////////////////////////////////////////
-        wait_on_buffer(bh);
-        if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
-        // even the bh is valid after wait, the result is still
-        // unreliable, since an interrupt might happen
-        //////////////////////////////////////////////////////////////////////
-        --bh->b_count;  // make sure it can be freed again
-    }
-}
-
 // No lock! Use it cautiously!
 static inline struct buffer_head* find_free_buffer()
 {
@@ -245,109 +192,6 @@ static inline struct buffer_head* find_free_buffer()
     } while ((tmp = tmp->b_next_free) != free_list);
     //////////////////////////////////////////////////////////////////////////
     return NULL;
-}
-/*
- * Ok, this is getblk, and it isn't very clear, again to hinder
- * race-conditions. Most of the code is seldom used, (ie repeating),
- * so it should be much more efficient than it looks.
- *
- * The algoritm is changed: hopefully better, and an elusive bug removed.
- */
-// Modified by Henry
-struct buffer_head* getblk(int dev, int block)
-{
-    struct buffer_head* tmp;
-
-repeat:
-    struct buffer_head* bh = get_hash_table(dev, block); // reliable
-    //////////////////////////////////////////////////////////////////////////
-    if (bh) return bh;  // if in hash table directly return it! reliable
-    //////////////////////////////////////////////////////////////////////////
-    // if the block is not in buffer, you have to find a free buffer to read
-    // into.
-    bh = find_free_buffer();    // not reliable
-    //////////////////////////////////////////////////////////////////////////
-    // if no free buffer exists, have to wait for one.
-    if (!bh) {
-        sleep_on(&buffer_wait);
-        goto repeat;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    // Finally we have a free candiate! But we have to check
-    wait_on_buffer(bh);
-    if (bh->b_count) {
-#ifdef DEBUG
-        printkc("During sleep, the empty buffer has been taken!\n");
-        printkc("Got back to search again\n");
-#endif
-        goto repeat;
-    } // the result is still unreliable.
-    //////////////////////////////////////////////////////////////////////////
-    while (bh->b_dirt) {
-        //sync_dev(bh->b_dev);  // sync the whole device is too much
-        // Furthermore, this helps avoid an elusive circular dependency:
-        // write_inode()
-        sync_buffer(bh);
-        wait_on_buffer(bh);
-        if (bh->b_count) goto repeat;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-    lock_buffer(bh);
-    if (bh->b_count) {  // lock & check to ensure it is reliable
-        unlock_buffer(bh);
-        goto repeat;
-    }
-    /* OK, FINALLY we know that this buffer is the only one of it's kind, */
-    /* NOTE!! While we slept waiting for this block, somebody else might */
-    /* already have added "this" block to the cache. check it */
-    if (find_buffer(dev,block)) {
-        unlock_buffer(bh);
-        goto repeat;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    bh->b_count = 1;
-    bh->b_dirt = 0;
-    bh->b_uptodate = 0;
-    remove_from_queues(bh);
-    bh->b_dev = dev;
-    bh->b_blocknr = block;
-    insert_into_queues(bh);
-    unlock_buffer(bh);
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-    return bh;
-}
-
-void brelse(struct buffer_head* buf)
-{
-	if (!buf) return;
-    //////////////////////////////////////////////////////////////////////////
-	wait_on_buffer(buf);
-	if (!(buf->b_count--)) panic("Trying to free free buffer");
-    // if buf->b_count ==0 finally, we have to wake up all processes
-    // waiting on this buffer
-	wake_up(&buffer_wait);
-    //////////////////////////////////////////////////////////////////////////
-}
-
-/*
- * bread() reads a specified block and returns the buffer that contains
- * it. It returns NULL if the block was unreadable.
- */
-struct buffer_head* bread(int dev, int block)
-{
-	struct buffer_head* bh = getblk(dev, block);
-	if (!bh) panic("bread: getblk returned NULL\n");
-    //////////////////////////////////////////////////////////////////////////
-	if (bh->b_uptodate) return bh;  // no need to read
-    //////////////////////////////////////////////////////////////////////////
-	ll_rw_block(READ, bh);
-	wait_on_buffer(bh);
-	if (bh->b_uptodate)
-		return bh;
-	brelse(bh);
-	return NULL;
 }
 
 #define COPYBLK(from,to) \
@@ -418,37 +262,218 @@ struct buffer_head * breada(int dev,int first, ...)
 	return (NULL);
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 void buffer_init(laddr_t buffer_end)
 {
-	struct buffer_head * h = start_buffer;
-	void * b;
-	int i;
-
-	if (buffer_end == 1<<20)
-		b = (void *) (640*1024);
-	else
-		b = (void *) buffer_end;
-	while ( (b -= BLOCK_SIZE) >= ((void *) (h+1)) ) {
-		h->b_dev = 0;
-		h->b_dirt = 0;
-		h->b_count = 0;
-		h->b_lock = 0;
-		h->b_uptodate = 0;
-		h->b_wait = NULL;
-		h->b_next = NULL;
-		h->b_prev = NULL;
-		h->b_data = (char *) b;
-		h->b_prev_free = h-1;
-		h->b_next_free = h+1;
-		h++;
-		NR_BUFFERS++;
-		if (b == (void *) 0x100000)
-			b = (void *) 0xA0000;
-	}
-	h--;
-	free_list = start_buffer;
-	free_list->b_prev_free = h;
-	h->b_next_free = free_list;
-	for (i=0;i<NR_HASH;i++)
-		hash_table[i]=NULL;
+    struct buffer_head * h = start_buffer;
+    void* b;
+    //////////////////////////////////////////////////////////////////////////
+    b = (buffer_end == 1<<20) ? (void*) (640*1024) : (void*) buffer_end;
+    while ( (b -= BLOCK_SIZE) >= ((void *) (h+1)) ) {
+        h->b_dev = 0;
+        h->b_dirt = 0;
+        h->b_count = 0;
+        h->b_lock = 0;
+        h->b_uptodate = 0;
+        h->b_wait = NULL;
+        h->b_next = NULL;
+        h->b_prev = NULL;
+        h->b_data = (char*) b;
+        h->b_prev_free = h-1;
+        h->b_next_free = h+1;
+        ++h;
+        ++NR_BUFFERS;
+        // check the boot-up to check why 0xA0000
+        if (b == (void *) 0x100000) b = (void *) 0xA0000;
+    }
+    --h;
+    free_list = start_buffer;
+    free_list->b_prev_free = h;
+    h->b_next_free = free_list;
+    //////////////////////////////////////////////////////////////////////////
+    /*
+     * for (register int i=0;i < NR_HASH; ++i) hash_table[i]=NULL;
+     */
 }	
+
+/*
+ * Why like this, I hear you say... The reason is race-conditions.
+ * As we don't lock buffers (unless we are readint them, that is),
+ * something might happen to it while we sleep (ie a read-error
+ * will force it bad). This shouldn't really happen currently, but
+ * the code is ready.
+ */
+struct buffer_head* get_hash_table(int dev, int block)
+{
+    for (;;) {
+        struct buffer_head* bh = find_buffer(dev, block);
+        if (!bh) return NULL;
+        //////////////////////////////////////////////////////////////////////
+        // make sure the return value is reliable, since it cannot be freed
+        // anymore
+        ++bh->b_count;
+        //////////////////////////////////////////////////////////////////////
+        wait_on_buffer(bh);
+        if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
+        // even the bh is valid after wait, the result is still
+        // unreliable, since an interrupt might happen
+        //////////////////////////////////////////////////////////////////////
+        --bh->b_count;  // make sure it can be freed again
+    }
+}
+
+/*
+ * Ok, this is getblk, and it isn't very clear, again to hinder
+ * race-conditions. Most of the code is seldom used, (ie repeating),
+ * so it should be much more efficient than it looks.
+ *
+ * The algoritm is changed: hopefully better, and an elusive bug removed.
+ */
+// Modified by Henry
+struct buffer_head* getblk(int dev, int block)
+{
+    struct buffer_head* tmp;
+
+repeat:
+    /* Step 1. Check the hash table */
+    struct buffer_head* bh = get_hash_table(dev, block); // reliable
+    if (bh) return bh;  // if in hash table directly return it! reliable
+    //////////////////////////////////////////////////////////////////////////
+
+    /* 
+     * Step 2. 
+     * if the block is not in the buffer, you have to find a free 
+     * buffer block to read into.
+     */
+    bh = find_free_buffer();    // not reliable
+    //////////////////////////////////////////////////////////////////////////
+    // if no free buffer exists, have to wait for one.
+    if (!bh) {
+        sleep_on(&buffer_wait);
+        goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    // Finally we have a free candiate! But we have to check
+    wait_on_buffer(bh);
+    if (bh->b_count) {
+#ifdef DEBUG
+        printkc("During sleep, the empty buffer has been taken!\n");
+        printkc("Got back to search again\n");
+#endif
+        goto repeat;
+    } // the result is still unreliable.
+    //////////////////////////////////////////////////////////////////////////
+    while (bh->b_dirt) {
+        //sync_dev(bh->b_dev);  // sync the whole device is too much
+        // Furthermore, this get rid of an elusive circular dependency:
+        // write_inode()
+        sync_buffer(bh);
+        wait_on_buffer(bh);
+        if (bh->b_count) goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    lock_buffer(bh);
+    if (bh->b_count) {  // lock & check to ensure it is reliable
+        unlock_buffer(bh);
+        goto repeat;
+    }
+    /* OK, FINALLY we know that this buffer is the only one of it's kind, */
+    /* NOTE!! While we slept waiting for this block, somebody else might */
+    /* already have added "this" block to the cache. check it */
+    if (find_buffer(dev, block)) {
+        unlock_buffer(bh);
+        goto repeat;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    bh->b_count = 1;
+    bh->b_dirt = 0;
+    bh->b_uptodate = 0;
+    remove_from_queues(bh);
+    bh->b_dev = dev;
+    bh->b_blocknr = block;
+    insert_into_queues(bh);
+    unlock_buffer(bh);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    return bh;
+}
+
+void brelse(struct buffer_head* buf)
+{
+	if (!buf) return;
+    //////////////////////////////////////////////////////////////////////////
+	wait_on_buffer(buf);
+	if (!(buf->b_count--)) panic("Trying to free free buffer");
+    // if buf->b_count ==0 finally, we have to wake up all processes
+    // waiting on this buffer
+	wake_up(&buffer_wait);
+    //////////////////////////////////////////////////////////////////////////
+}
+
+/*
+ * bread() reads a specified block and returns the buffer that contains
+ * it. It returns NULL if the block was unreadable.
+ */
+struct buffer_head* bread(int dev, int block)
+{
+	struct buffer_head* bh = getblk(dev, block);
+#ifdef DEBUG
+	if (!bh) panic("bread: getblk returned NULL\n");
+#endif
+    //////////////////////////////////////////////////////////////////////////
+    /* 
+     * Step 1. If the buffer block alreayd exists and is up-to-date,
+     * return it directly
+     */
+	if (bh->b_uptodate) return bh;  // no need to read
+    //////////////////////////////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////////////////////////////
+    /* Step 2. Read it from the device */
+    // the up-to-date flag is set by device driver, if read succeeds
+    // Check the end_request()
+	ll_rw_block(READ, bh);
+	wait_on_buffer(bh);
+	if (bh->b_uptodate) return bh;
+    //////////////////////////////////////////////////////////////////////////
+    
+    //////////////////////////////////////////////////////////////////////////
+    /* 
+     * Step 3. if I/O error happends, release the buffer 
+     * and return NULL 
+     */
+	brelse(bh); 
+    return NULL;
+}
+
+// no check device validity! Be careful
+int sync_dev(int dev)
+{
+    //////////////////////////////////////////////////////////////////////////
+    //Guess: the reason do_sync() twice is to free buffs for sync_inodes() 
+    do_sync(dev); 
+    sync_inodes();
+    do_sync(dev);
+    //////////////////////////////////////////////////////////////////////////
+    return 0;
+}
+
+// system call: sync
+int sys_sync(void)
+{
+	sync_inodes();		/* write out inodes into buffers */
+    //////////////////////////////////////////////////////////////////////////
+	struct buffer_head* bh = start_buffer;
+	for (register int i = 0; i < NR_BUFFERS; ++i, ++bh) {
+		wait_on_buffer(bh);
+		if (bh->b_dirt) ll_rw_block(WRITE, bh);
+	}
+    //////////////////////////////////////////////////////////////////////////
+	return 0;
+}
+
+
+

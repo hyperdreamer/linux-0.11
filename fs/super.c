@@ -402,12 +402,12 @@ int sys_mount(char * dev_name, char * dir_name, int rw_flag)
 
 void mount_root(void)
 {
-    int i;
+    register int i;
     extern void wait_for_keypress(void);
     //////////////////////////////////////////////////////////////////////////
     if (32 != sizeof (struct d_inode)) panic("bad i-node size");
     //////////////////////////////////////////////////////////////////////////
-        for(i = 0;i < NR_FILE; ++i) file_table[i].f_count=0;
+    for(i = 0; i < NR_FILE; ++i) file_table[i].f_count=0;   // TO_READ
     if (MAJOR(ROOT_DEV) == 2) {
         printk("Insert root floppy and press ENTER");
         wait_for_keypress();        // TO_READ

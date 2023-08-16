@@ -46,30 +46,30 @@ __res;})
 
 void free_block(int dev, int block)
 {
-	struct super_block * sb;
-	struct buffer_head * bh;
+    struct super_block * sb;
+    struct buffer_head * bh;
 
-	if (!(sb = get_super(dev)))
-		panic("trying to free block on nonexistent device");
-	if (block < sb->s_firstdatazone || block >= sb->s_nzones)
-		panic("trying to free block not in datazone");
-	bh = get_hash_table(dev,block);
-	if (bh) {
-		if (bh->b_count != 1) {
-			printk("trying to free block (%04x:%d), count=%d\n",
-				dev,block,bh->b_count);
-			return;
-		}
-		bh->b_dirt=0;
-		bh->b_uptodate=0;
-		brelse(bh);
-	}
-	block -= sb->s_firstdatazone - 1 ;
-	if (clear_bit(block&8191,sb->s_zmap[block/8192]->b_data)) {
-		printk("block (%04x:%d) ",dev,block+sb->s_firstdatazone-1);
-		panic("free_block: bit already cleared");
-	}
-	sb->s_zmap[block/8192]->b_dirt = 1;
+    if (!(sb = get_super(dev)))
+        panic("trying to free block on nonexistent device");
+    if (block < sb->s_firstdatazone || block >= sb->s_nzones)
+        panic("trying to free block not in datazone");
+    bh = get_hash_table(dev,block);
+    if (bh) {
+        if (bh->b_count != 1) {
+            printk("trying to free block (%04x:%d), count=%d\n",
+                   dev,block,bh->b_count);
+            return;
+        }
+        bh->b_dirt=0;
+        bh->b_uptodate=0;
+        brelse(bh);
+    }
+    block -= sb->s_firstdatazone - 1 ;
+    if (clear_bit(block&8191,sb->s_zmap[block/8192]->b_data)) {
+        printk("block (%04x:%d) ",dev,block+sb->s_firstdatazone-1);
+        panic("free_block: bit already cleared");
+    }
+    sb->s_zmap[block/8192]->b_dirt = 1;
 }
 
 int new_block(int dev)
