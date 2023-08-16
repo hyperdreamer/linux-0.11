@@ -51,9 +51,9 @@ static inline void lock_buffer(struct buffer_head* bh)
 
 static inline void unlock_buffer(struct buffer_head* bh)
 {
-	cli();
 	if (!bh->b_lock) printk("ll_rw_block.c: buffer not locked\n");
     //////////////////////////////////////////////////////////////////////////
+	cli();
 	bh->b_lock = 0;
 	wake_up(&bh->b_wait);
     sti();
@@ -67,7 +67,7 @@ static inline void unlock_buffer(struct buffer_head* bh)
 static void add_request(struct blk_dev_struct* dev, struct request* req)
 {
     cli();
-    //req->next = NULL; // Question: is this necessary?
+    req->next = NULL;
     if (req->bh) req->bh->b_dirt = 0;
     //////////////////////////////////////////////////////////////////////////
     struct request* tmp = dev->current_request;
@@ -156,9 +156,9 @@ repeat:
     req->buffer = bh->b_data;
     req->waiting = NULL;
     req->bh = bh;
-    req->next = NULL;
+    //req->next = NULL; // add_request will do this
     add_request(blk_dev + major, req);      // TO-READ
-    // still blocked on buffer
+    // The buffer is still locked! Unlock in end_request()
     //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
 }

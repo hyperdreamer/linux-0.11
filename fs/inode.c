@@ -75,9 +75,7 @@ static void write_inode(struct m_inode* inode)
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
                 + (inode->i_num-1)/INODES_PER_BLOCK;
     //////////////////////////////////////////////////////////////////////////
-    // the old code creates a dependency circle, not a good idea
     struct buffer_head* bh = bread(inode->i_dev, block);
-    //struct buffer_head* bh = get_hash_table(inode->i_dev, block);
     if (!bh) panic("write_inode(): unable to find i-node!");
     //////////////////////////////////////////////////////////////////////////
     ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK] =
@@ -86,8 +84,7 @@ static void write_inode(struct m_inode* inode)
     bh->b_dirt = 1;
     inode->i_dirt = 0;
     //////////////////////////////////////////////////////////////////////////
-    // get_hash_table() has incremented bh->b_count, we have to do this
-    brelse(bh); 
+    brelse(bh); // have to release it after write 
     //////////////////////////////////////////////////////////////////////////
     unlock_inode(inode);
     //////////////////////////////////////////////////////////////////////////

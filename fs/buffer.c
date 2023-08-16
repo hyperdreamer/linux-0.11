@@ -53,9 +53,9 @@ static inline void lock_buffer(struct buffer_head* bh)
 
 static inline void unlock_buffer(struct buffer_head* bh)
 {
-	cli();
 	if (!bh->b_lock) printk("buffer.c: buffer not locked\n");
     //////////////////////////////////////////////////////////////////////////
+	cli();
 	bh->b_lock = 0;
 	wake_up(&bh->b_wait);
     sti();
@@ -324,7 +324,7 @@ struct buffer_head* bread(int dev, int block)
 	struct buffer_head* bh = getblk(dev, block);
 	if (!bh) panic("bread: getblk returned NULL\n");
     //////////////////////////////////////////////////////////////////////////
-	if (bh->b_uptodate) return bh;  // no need to write
+	if (bh->b_uptodate) return bh;  // no need to read
     //////////////////////////////////////////////////////////////////////////
 	ll_rw_block(READ, bh);
 	wait_on_buffer(bh);
