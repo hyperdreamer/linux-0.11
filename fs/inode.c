@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 #include <asm/system.h>
 
-struct m_inode inode_table[NR_INODE]={};
+struct m_inode inode_table[NR_INODE]= {};
 
 static inline void wait_on_inode(struct m_inode* inode)
 {
@@ -239,38 +239,60 @@ repeat:
 	return;
 }
 
-struct m_inode * get_empty_inode(void)
+struct m_inode* get_empty_inode(void)
 {
-	struct m_inode * inode;
-	static struct m_inode * last_inode = inode_table;
-	int i;
-
-	do {
-		inode = NULL;
-		for (i = NR_INODE; i ; i--) {
-			if (++last_inode >= inode_table + NR_INODE)
-				last_inode = inode_table;
-			if (!last_inode->i_count) {
-				inode = last_inode;
-				if (!inode->i_dirt && !inode->i_lock)
-					break;
-			}
-		}
-		if (!inode) {
-			for (i=0 ; i<NR_INODE ; i++)
-				printk("%04x: %6d\t",inode_table[i].i_dev,
-					inode_table[i].i_num);
-			panic("No free inodes in mem");
-		}
-		wait_on_inode(inode);
-		while (inode->i_dirt) {
-			write_inode(inode);
-			wait_on_inode(inode);
-		}
-	} while (inode->i_count);
-	memset(inode,0,sizeof(*inode));
-	inode->i_count = 1;
-	return inode;
+    static struct m_inode* last_inode = inode_table;
+    struct m_inode* inode;
+    //////////////////////////////////////////////////////////////////////////
+repeat:
+    do {
+        inode = NULL;
+        register int i;
+        //////////////////////////////////////////////////////////////////////
+        for (i = NR_INODE; i ; --i) {
+            if (++last_inode >= inode_table + NR_INODE)
+                last_inode = inode_table;   // circular
+            //////////////////////////////////////////////////////////////////
+            if (!last_inode->i_count) {
+                inode = last_inode;
+                if (!inode->i_dirt && !inode->i_lock) break;
+            }
+        }
+        //////////////////////////////////////////////////////////////////////
+        if (!inode) {
+            for (i = 0; i < NR_INODE; i++)
+                printk("%04x: %6d\t",inode_table[i].i_dev,
+                       inode_table[i].i_num);
+            panic("No free inodes in mem");
+        }
+        //////////////////////////////////////////////////////////////////////
+        wait_on_inode(inode);
+        while (inode->i_dirt) {
+            write_inode(inode);
+            wait_on_inode(inode);
+        }
+    } while (inode->i_count);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    // the result is unreliable have to add a lock
+    lock_inode(inode);
+    if (inode->i_count) {
+//#undef DEBUG
+#ifdef DEBUG
+        printkc("get_empty_inode():\n");
+        printkc("\tThe empty candidate is taken while sleeping!\n");
+#endif
+        //////////////////////////////////////////////////////////////////////
+        unlock_inode(inode);
+        goto repeat;
+    }
+    // we can do this safely, because interrupts are disabled!!!
+    memset(inode, 0, sizeof(struct m_inode));
+    inode->i_count = 1;     // mark it as used ahead
+    unlock_inode(inode);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    return inode;
 }
 
 struct m_inode * get_pipe_inode(void)
@@ -289,53 +311,53 @@ struct m_inode * get_pipe_inode(void)
 	return inode;
 }
 
-struct m_inode * iget(int dev,int nr)
+struct m_inode* iget(int dev, int nr)
 {
-	struct m_inode * inode, * empty;
 
-	if (!dev)
-		panic("iget with dev==0");
-	empty = get_empty_inode();
-	inode = inode_table;
-	while (inode < NR_INODE+inode_table) {
-		if (inode->i_dev != dev || inode->i_num != nr) {
-			inode++;
-			continue;
-		}
-		wait_on_inode(inode);
-		if (inode->i_dev != dev || inode->i_num != nr) {
-			inode = inode_table;
-			continue;
-		}
-		inode->i_count++;
-		if (inode->i_mount) {
-			int i;
-
-			for (i = 0 ; i<NR_SUPER ; i++)
-				if (super_block[i].s_imount==inode)
-					break;
-			if (i >= NR_SUPER) {
-				printk("Mounted inode hasn't got sb\n");
-				if (empty)
-					iput(empty);
-				return inode;
-			}
-			iput(inode);
-			dev = super_block[i].s_dev;
-			nr = ROOT_INO;
-			inode = inode_table;
-			continue;
-		}
-		if (empty)
-			iput(empty);
-		return inode;
-	}
-	if (!empty)
-		return (NULL);
-	inode=empty;
-	inode->i_dev = dev;
-	inode->i_num = nr;
-	read_inode(inode);
-	return inode;
+    if (!dev) panic("iget with dev==0");
+    //////////////////////////////////////////////////////////////////////////
+    struct m_inode* empty = get_empty_inode();
+    struct m_inode* inode = inode_table;
+    //////////////////////////////////////////////////////////////////////////
+    while (inode < NR_INODE + inode_table) {
+        if (inode->i_dev != dev || inode->i_num != nr) {
+            inode++;
+            continue;
+        }
+        wait_on_inode(inode);
+        if (inode->i_dev != dev || inode->i_num != nr) {
+            inode = inode_table;
+            continue;
+        }
+        inode->i_count++;
+        if (inode->i_mount) {
+            int i;
+         
+            for (i = 0 ; i<NR_SUPER ; i++)
+                if (super_block[i].s_imount==inode)
+                    break;
+            if (i >= NR_SUPER) {
+                printk("Mounted inode hasn't got sb\n");
+                if (empty)
+                    iput(empty);
+                return inode;
+            }
+            iput(inode);
+            dev = super_block[i].s_dev;
+            nr = ROOT_INO;
+            inode = inode_table;
+            continue;
+        }
+        if (empty)
+            iput(empty);
+        return inode;
+    }
+    if (!empty)
+        return (NULL);
+    inode=empty;
+    inode->i_dev = dev;
+    inode->i_num = nr;
+    read_inode(inode);
+    return inode;
 }
 
