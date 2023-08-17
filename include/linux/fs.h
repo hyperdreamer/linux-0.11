@@ -56,8 +56,8 @@ void buffer_init(laddr_t buffer_end);
 #define NULL ((void *) 0)
 #endif
 
-#define INODES_PER_BLOCK ((BLOCK_SIZE)/(sizeof (struct d_inode)))
-#define DIR_ENTRIES_PER_BLOCK ((BLOCK_SIZE)/(sizeof (struct dir_entry)))
+#define INODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct d_inode))
+#define DIR_ENTRIES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct dir_entry))
 
 #define PIPE_HEAD(inode) ((inode).i_zone[0])
 #define PIPE_TAIL(inode) ((inode).i_zone[1])

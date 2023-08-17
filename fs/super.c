@@ -15,8 +15,23 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-int ROOT_DEV = 0; /* this is initialized in init/main.c */
+/* set_bit uses setb, as gas doesn't recognize setc */
+#define bit_set(bitnr, addr) \
+    ({ \
+        int __res ; \
+        __asm__ ("btl %2, %3\n\t" \
+                 "setb %%al" \
+                 : \
+                 "=a" (__res) \
+                 : \
+                 "a" (0), \
+                 "r" (bitnr), \
+                 "m" (*(addr)) \
+                ); \
+        __res; \
+    })
 
+int ROOT_DEV = 0; /* this is initialized in init/main.c */
 struct super_block super_block[NR_SUPER] = {};
 
 static inline void lock_super(struct super_block* sb)
@@ -164,28 +179,77 @@ struct super_block* get_super(int dev)
 
 void put_super(int dev)
 {
-	struct super_block * sb;
-	/* struct m_inode * inode;*/
-	int i;
+    struct super_block* sb;
+    register int i;
+    //////////////////////////////////////////////////////////////////////////
+    if (dev == ROOT_DEV) {
+        printk("root diskette changed: prepare for armageddon\n\r");
+        return;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    sb = get_super(dev);
+    if (!sb) return;
+    if (sb->s_imount) {
+        printk("Mounted disk changed - tssk, tssk\n\r");
+        return;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    lock_super(sb);
+    sb->s_dev = 0;
+    for(i = 0; i < sb->s_imap_blocks; ++i) brelse(sb->s_imap[i]);
+    for(i = 0; i < sb->s_zmap_blocks; ++i) brelse(sb->s_zmap[i]);
+    unlock_super(sb);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    return;
+}
 
-	if (dev == ROOT_DEV) {
-		printk("root diskette changed: prepare for armageddon\n\r");
-		return;
+int sys_mount(char* dev_name, char* dir_name, int rw_flag)
+{
+	int dev;
+
+    //////////////////////////////////////////////////////////////////////////
+	struct m_inode* dev_i = namei(dev_name);
+	if (!dev_i) return -ENOENT;
+    //////////////////////////////////////////////////////////////////////////
+	dev = dev_i->i_zone[0];
+	if (!S_ISBLK(dev_i->i_mode)) {
+		iput(dev_i);
+		return -EPERM;
 	}
-	if (!(sb = get_super(dev)))
-		return;
+	iput(dev_i);
+    //////////////////////////////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////////////////////////////
+    struct m_inode* dir_i = namei(dir_name);
+	if (!dir_i)
+		return -ENOENT;
+	if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
+		iput(dir_i);
+		return -EBUSY;
+	}
+	if (!S_ISDIR(dir_i->i_mode)) {
+		iput(dir_i);
+		return -EPERM;
+	}
+	struct super_block* sb = read_super(dev);
+	if (!sb) {
+		iput(dir_i);
+		return -EBUSY;
+	}
 	if (sb->s_imount) {
-		printk("Mounted disk changed - tssk, tssk\n\r");
-		return;
+		iput(dir_i);
+		return -EBUSY;
 	}
-	lock_super(sb);
-	sb->s_dev = 0;
-	for(i=0;i<I_MAP_SLOTS;i++)
-		brelse(sb->s_imap[i]);
-	for(i=0;i<Z_MAP_SLOTS;i++)
-		brelse(sb->s_zmap[i]);
-	unlock_super(sb);
-	return;
+	if (dir_i->i_mount) {
+		iput(dir_i);
+		return -EPERM;
+	}
+	sb->s_imount=dir_i;
+	dir_i->i_mount=1;
+	dir_i->i_dirt=1;		/* NOTE! we don't iput(dir_i) */
+	return 0;			/* we do that in umount */
 }
 
 int sys_umount(char * dev_name)
@@ -220,64 +284,6 @@ int sys_umount(char * dev_name)
 	sync_dev(dev);
 	return 0;
 }
-
-int sys_mount(char * dev_name, char * dir_name, int rw_flag)
-{
-	struct m_inode * dev_i, * dir_i;
-	struct super_block * sb;
-	int dev;
-
-	if (!(dev_i=namei(dev_name)))
-		return -ENOENT;
-	dev = dev_i->i_zone[0];
-	if (!S_ISBLK(dev_i->i_mode)) {
-		iput(dev_i);
-		return -EPERM;
-	}
-	iput(dev_i);
-	if (!(dir_i=namei(dir_name)))
-		return -ENOENT;
-	if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
-		iput(dir_i);
-		return -EBUSY;
-	}
-	if (!S_ISDIR(dir_i->i_mode)) {
-		iput(dir_i);
-		return -EPERM;
-	}
-	if (!(sb=read_super(dev))) {
-		iput(dir_i);
-		return -EBUSY;
-	}
-	if (sb->s_imount) {
-		iput(dir_i);
-		return -EBUSY;
-	}
-	if (dir_i->i_mount) {
-		iput(dir_i);
-		return -EPERM;
-	}
-	sb->s_imount=dir_i;
-	dir_i->i_mount=1;
-	dir_i->i_dirt=1;		/* NOTE! we don't iput(dir_i) */
-	return 0;			/* we do that in umount */
-}
-
-/* set_bit uses setb, as gas doesn't recognize setc */
-#define bit_set(bitnr, addr) \
-    ({ \
-        int __res ; \
-        __asm__ ("btl %2, %3\n\t" \
-                 "setb %%al" \
-                 : \
-                 "=a" (__res) \
-                 : \
-                 "a" (0), \
-                 "r" (bitnr), \
-                 "m" (*(addr)) \
-                ); \
-        __res; \
-    })
 
 void mount_root(void)
 {
