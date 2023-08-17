@@ -18,24 +18,6 @@
 int ROOT_DEV = 0; /* this is initialized in init/main.c */
 
 struct super_block super_block[NR_SUPER] = {};
-static bool st_lock = false;
-static struct task_struct* st_wait = NULL;
-
-static inline void lock_st()
-{
-    cli();
-    while (st_lock) sleep_on(&st_wait);
-    st_lock = true;
-    sti();
-}
-
-static inline void unlock_st()
-{
-    cli();
-    st_lock = false;
-    wake_up(&st_wait);
-    sti();
-}
 
 static inline void lock_super(struct super_block* sb)
 {
@@ -61,51 +43,32 @@ static inline void wait_on_super(struct super_block* sb)
 }
 
 // No lock, No check! Use it at your own risk
-static inline struct super_block* find_super_directly(int dev)
+static inline struct super_block* get_free_super_directly()
 {
-    //if (!dev) return NULL;
     struct super_block* s;
     for (s = &super_block[0]; s < &super_block[NR_SUPER]; ++s)
-        if (s->s_dev == dev) return s; 			
+        if (!s->s_dev) return s;
     //////////////////////////////////////////////////////////////////////////
     return NULL;
 }
 
-static inline struct super_block* get_free_super_slot_safely()
-{
-    lock_st();
-    //////////////////////////////////////////////////////////////////////////
-    struct super_block* s = &super_block[0];
-    do {
-        if (!s->s_dev) {
-            unlock_st();
-            return s;
-        }
-    } while (++s < &super_block[NR_SUPER]);
-    //////////////////////////////////////////////////////////////////////////
-    unlock_st();
-    return NULL;
-}
-
-static struct super_block* read_super_safely(int dev)
+static struct super_block* read_super(int dev)
 {
     if (!dev) return NULL;
     //////////////////////////////////////////////////////////////////////////
 repeat:
     check_disk_change(dev);     // TO_READ
     //////////////////////////////////////////////////////////////////////////
-    struct super_block* s = get_super_safely(dev);
+    struct super_block* s = get_super(dev);
     if (s) return s;
     //////////////////////////////////////////////////////////////////////////
-    s = get_free_super_slot_safely();
-    //////////////////////////////////////////////////////////////////////////
+    s = get_free_super_directly();
 #ifdef DEBUG
     if (s->s_lock) {
         printkc("Free super block should not be locked!\n");
         printkc("An Interrupt must've happened!\n");
     }
 #endif
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     lock_super(s);
     if (s->s_dev) { // it has been taken
@@ -161,8 +124,8 @@ repeat:
     //////////////////////////////////////////////////////////////////////////
     // something wrong with the super block read
     if (block != 2 + s->s_imap_blocks + s->s_zmap_blocks) {
-        for(i = 0; i < I_MAP_SLOTS; ++i) brelse(s->s_imap[i]);
-        for(i = 0; i < Z_MAP_SLOTS; ++i) brelse(s->s_zmap[i]);
+        for(i = 0; i < s->s_imap_blocks; ++i) brelse(s->s_imap[i]);
+        for(i = 0; i < s->s_zmap_blocks; ++i) brelse(s->s_zmap[i]);
         s->s_dev = 0;
         unlock_super(s);
         return NULL;
@@ -176,97 +139,9 @@ repeat:
     return s;
 }
 
-static struct super_block* read_super(int dev)
-{
-    if (!dev) return NULL;
-    //////////////////////////////////////////////////////////////////////////
-repeat:
-    check_disk_change(dev);     // TO_READ
-    //////////////////////////////////////////////////////////////////////////
-    struct super_block* s = get_super(dev);
-    if (s) return s;
-    //////////////////////////////////////////////////////////////////////////
-    for (s = &super_block[0]; ; ++s) { // try to find a free slot
-        if (s >= &super_block[NR_SUPER]) return NULL;   // if no free slot
-        if (!s->s_dev) break;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    if (s->s_lock) panic("Free super block should not be locked!\n");
-    lock_super(s);
-    s->s_dev = dev;
-    s->s_isup = NULL;
-    s->s_imount = NULL;
-    s->s_time = 0;
-    s->s_rd_only = 0;
-    s->s_dirt = 0;
-    struct buffer_head* bh = bread(dev, 1);
-    if (!bh) {
-        s->s_dev = 0;
-        unlock_super(s);
-        return NULL;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    *((struct d_super_block *) s) =
-        *((struct d_super_block *) bh->b_data);
-    brelse(bh);
-    //////////////////////////////////////////////////////////////////////////
-    if (s->s_magic != SUPER_MAGIC) {
-        s->s_dev = 0;
-        unlock_super(s);
-        return NULL;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    register int i;
-    for (i = 0; i < I_MAP_SLOTS; ++i) s->s_imap[i] = NULL;
-    for (i = 0; i < Z_MAP_SLOTS; ++i) s->s_zmap[i] = NULL;
-    //////////////////////////////////////////////////////////////////////////
-    int block = 2; // boot block & super block
-    for (i = 0; i < s->s_imap_blocks; ++i)
-        if ((s->s_imap[i] = bread(dev, block)))
-            ++block;
-        else
-            break;
-    //////////////////////////////////////////////////////////////////////////
-    for (i = 0 ; i < s->s_zmap_blocks; i++)
-        if ((s->s_zmap[i] = bread(dev, block)))
-            ++block;
-        else
-            break;
-    //////////////////////////////////////////////////////////////////////////
-    // something wrong with the super block read
-    if (block != 2 + s->s_imap_blocks + s->s_zmap_blocks) {
-        for(i = 0; i < I_MAP_SLOTS; ++i) brelse(s->s_imap[i]);
-        for(i = 0; i < Z_MAP_SLOTS; ++i) brelse(s->s_zmap[i]);
-        s->s_dev = 0;
-        unlock_super(s);
-        return NULL;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    s->s_imap[0]->b_data[0] |= 1;   // make sure i-node 0 is not used
-    s->s_zmap[0]->b_data[0] |= 1;   // make sure zone 0 is used by the root
-    unlock_super(s);
-    //////////////////////////////////////////////////////////////////////////
-    return s;
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
-
-struct super_block* get_super_safely(int dev)
-{
-    if (!dev) return NULL;
-    //////////////////////////////////////////////////////////////////////////
-    lock_st();
-    struct super_block* s = find_super_directly(dev);
-    if (s) {
-        unlock_st();
-        return s;
-    }
-    unlock_st();
-    //////////////////////////////////////////////////////////////////////////
-    return NULL;
-}
 
 struct super_block* get_super(int dev)
 {
@@ -277,6 +152,7 @@ struct super_block* get_super(int dev)
         if (s->s_dev == dev) {
             wait_on_super(s);
             if (s->s_dev == dev) return s;
+            //////////////////////////////////////////////////////////////////
             s = &super_block[0];
             continue;
         } 			
@@ -434,8 +310,7 @@ void mount_root(void)
     }
 #endif
     //////////////////////////////////////////////////////////////////////////
-    //struct super_block* p = read_super(ROOT_DEV);
-    struct super_block* p = read_super_safely(ROOT_DEV);
+    struct super_block* p = read_super(ROOT_DEV);
     if (!p) panic("Unable to mount root");
     //////////////////////////////////////////////////////////////////////////
     struct m_inode* mi = iget(ROOT_DEV, ROOT_INO);

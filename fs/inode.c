@@ -41,7 +41,7 @@ static inline void unlock_inode(struct m_inode* inode)
 static void read_inode(struct m_inode* inode)
 {
     lock_inode(inode);
-    struct super_block* sb = get_super_safely(inode->i_dev);
+    struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to read inode without dev");
     //////////////////////////////////////////////////////////////////////////
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
@@ -70,7 +70,7 @@ static void write_inode(struct m_inode* inode)
     }
     //////////////////////////////////////////////////////////////////////////
     // modified by Henry
-    struct super_block* sb = get_super_safely(inode->i_dev);
+    struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to write inode without device");
     //////////////////////////////////////////////////////////////////////////
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks

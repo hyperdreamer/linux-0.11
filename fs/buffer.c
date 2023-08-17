@@ -143,7 +143,7 @@ static inline struct buffer_head* find_buffer(int dev, int block)
 }
 
 // No lock! Use it cautiously!
-static inline struct buffer_head* find_free_buffer()
+static inline struct buffer_head* find_free_buffer_directly()
 {
 #define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
 
@@ -264,7 +264,7 @@ repeat:
      * if the block is not in the buffer, you have to find a free 
      * buffer block to read into.
      */
-    bh = find_free_buffer();    // not reliable
+    bh = find_free_buffer_directly();    // not reliable
     //////////////////////////////////////////////////////////////////////////
     // if no free buffer exists, have to wait for one.
     if (!bh) {

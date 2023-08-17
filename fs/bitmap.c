@@ -74,19 +74,23 @@ void free_block(int dev, int block)
 
 int new_block(int dev)
 {
-    struct buffer_head * bh;
-    struct super_block * sb;
-    int i,j;
+    struct super_block* sb = get_super(dev);
+    if (!sb) panic("trying to get new block from nonexistant device");
+    //////////////////////////////////////////////////////////////////////////
 
-    if (!(sb = get_super(dev)))
-        panic("trying to get new block from nonexistant device");
-    j = 8192;
-    for (i=0 ; i<8 ; i++)
-        if ((bh=sb->s_zmap[i]))
-            if ((j=find_first_zero(bh->b_data))<8192)
-                break;
-    if (i>=8 || !bh || j>=8192)
-        return 0;
+    //////////////////////////////////////////////////////////////////////////
+    int i;
+    int j = 8192;
+    struct buffer_head* bh;
+    //////////////////////////////////////////////////////////////////////////
+    // find the nr of the first emtpy zone
+    for (i = 0; i < sb->s_zmap_blocks ; ++i) {
+        bh = sb->s_zmap[i];
+        if (bh && (j = find_first_zero(bh->b_data)) < BLCK_BITS) break;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    if (i >= sb->s_zmap_blocks || !bh || j >= BLCK_BITS) return 0;
+    //////////////////////////////////////////////////////////////////////////
     if (set_bit(j,bh->b_data))
         panic("new_block: bit already set");
     bh->b_dirt = 1;
