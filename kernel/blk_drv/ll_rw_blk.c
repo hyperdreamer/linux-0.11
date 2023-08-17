@@ -136,8 +136,11 @@ static void make_request(int major, int rw, struct buffer_head* bh)
     struct request* req;
 repeat:
     req = (rw == READ) ? request+NR_REQUEST : request+((NR_REQUEST*2)/3);
+    //////////////////////////////////////////////////////////////////////////
     /* find an empty request */
-    while (--req >= request) if (req->dev < 0) break;
+    while (--req >= request) 
+        if (req->dev < 0) break;
+    //////////////////////////////////////////////////////////////////////////
     /* if none found, sleep on new requests: check for rw_ahead */
     if (req < request) {
         if (rw_ahead) {
@@ -147,6 +150,7 @@ repeat:
         sleep_on(&wait_for_request);
         goto repeat;
     }
+    //////////////////////////////////////////////////////////////////////////
     /* fill up the request-info, and add it to the queue */
     req->dev = bh->b_dev;
     req->cmd = rw;

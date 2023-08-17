@@ -71,7 +71,6 @@ static inline struct super_block* find_super_directly(int dev)
     return NULL;
 }
 
-// No lock, No check! Use it at your own risk
 static inline struct super_block* get_free_super_slot_safely()
 {
     lock_st();
@@ -86,65 +85,6 @@ static inline struct super_block* get_free_super_slot_safely()
     //////////////////////////////////////////////////////////////////////////
     unlock_st();
     return NULL;
-}
-
-struct super_block* get_super_safely(int dev)
-{
-    if (!dev) return NULL;
-    //////////////////////////////////////////////////////////////////////////
-    lock_st();
-    struct super_block* s = find_super_directly(dev);
-    if (s) {
-        unlock_st();
-        return s;
-    }
-    unlock_st();
-    //////////////////////////////////////////////////////////////////////////
-    return NULL;
-}
-
-struct super_block* get_super(int dev)
-{
-    if (!dev) return NULL;
-    //////////////////////////////////////////////////////////////////////////
-    struct super_block* s = &super_block[0];
-    while (s < &super_block[NR_SUPER]) {
-        if (s->s_dev == dev) {
-            wait_on_super(s);
-            if (s->s_dev == dev) return s;
-            s = &super_block[0];
-            continue;
-        } 			
-        ++s;
-    }
-    //////////////////////////////////////////////////////////////////////////
-    return NULL;
-}
-
-void put_super(int dev)
-{
-	struct super_block * sb;
-	/* struct m_inode * inode;*/
-	int i;
-
-	if (dev == ROOT_DEV) {
-		printk("root diskette changed: prepare for armageddon\n\r");
-		return;
-	}
-	if (!(sb = get_super(dev)))
-		return;
-	if (sb->s_imount) {
-		printk("Mounted disk changed - tssk, tssk\n\r");
-		return;
-	}
-	lock_super(sb);
-	sb->s_dev = 0;
-	for(i=0;i<I_MAP_SLOTS;i++)
-		brelse(sb->s_imap[i]);
-	for(i=0;i<Z_MAP_SLOTS;i++)
-		brelse(sb->s_zmap[i]);
-	unlock_super(sb);
-	return;
 }
 
 static struct super_block* read_super_safely(int dev)
@@ -309,6 +249,69 @@ repeat:
     return s;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
+struct super_block* get_super_safely(int dev)
+{
+    if (!dev) return NULL;
+    //////////////////////////////////////////////////////////////////////////
+    lock_st();
+    struct super_block* s = find_super_directly(dev);
+    if (s) {
+        unlock_st();
+        return s;
+    }
+    unlock_st();
+    //////////////////////////////////////////////////////////////////////////
+    return NULL;
+}
+
+struct super_block* get_super(int dev)
+{
+    if (!dev) return NULL;
+    //////////////////////////////////////////////////////////////////////////
+    struct super_block* s = &super_block[0];
+    while (s < &super_block[NR_SUPER]) {
+        if (s->s_dev == dev) {
+            wait_on_super(s);
+            if (s->s_dev == dev) return s;
+            s = &super_block[0];
+            continue;
+        } 			
+        ++s;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    return NULL;
+}
+
+void put_super(int dev)
+{
+	struct super_block * sb;
+	/* struct m_inode * inode;*/
+	int i;
+
+	if (dev == ROOT_DEV) {
+		printk("root diskette changed: prepare for armageddon\n\r");
+		return;
+	}
+	if (!(sb = get_super(dev)))
+		return;
+	if (sb->s_imount) {
+		printk("Mounted disk changed - tssk, tssk\n\r");
+		return;
+	}
+	lock_super(sb);
+	sb->s_dev = 0;
+	for(i=0;i<I_MAP_SLOTS;i++)
+		brelse(sb->s_imap[i]);
+	for(i=0;i<Z_MAP_SLOTS;i++)
+		brelse(sb->s_zmap[i]);
+	unlock_super(sb);
+	return;
+}
+
 int sys_umount(char * dev_name)
 {
 	struct m_inode * inode;
@@ -420,6 +423,16 @@ void mount_root(void)
         p->s_wait = NULL;
     }
     */
+#ifdef DEBUG
+    for (i = 0; i < NR_SUPER; ++i) {
+        if (super_block[i].s_dev || super_block[i].s_lock ||
+            super_block[i].s_wait)
+        {
+            printkc("Super block table is not initialized!\n");
+            panic("Super block table is not initialized!");
+        }
+    }
+#endif
     //////////////////////////////////////////////////////////////////////////
     //struct super_block* p = read_super(ROOT_DEV);
     struct super_block* p = read_super_safely(ROOT_DEV);

@@ -191,9 +191,9 @@ static char * envp_rc[] = { "HOME=/", NULL };
 static char * argv[] = { "-/bin/sh",NULL };
 static char * envp[] = { "HOME=/usr/root", NULL };
 
-void init(void) // run by process 1
+void init() // run by process 1
 {
-    int pid,i;
+    int pid, i;
     setup((void*) &drive_info);
     (void) open("/dev/tty0",O_RDWR,0);
     (void) dup(0);	// system call sys_dup

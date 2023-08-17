@@ -74,34 +74,34 @@ void free_block(int dev, int block)
 
 int new_block(int dev)
 {
-	struct buffer_head * bh;
-	struct super_block * sb;
-	int i,j;
+    struct buffer_head * bh;
+    struct super_block * sb;
+    int i,j;
 
-	if (!(sb = get_super(dev)))
-		panic("trying to get new block from nonexistant device");
-	j = 8192;
-	for (i=0 ; i<8 ; i++)
-		if ((bh=sb->s_zmap[i]))
-			if ((j=find_first_zero(bh->b_data))<8192)
-				break;
-	if (i>=8 || !bh || j>=8192)
-		return 0;
-	if (set_bit(j,bh->b_data))
-		panic("new_block: bit already set");
-	bh->b_dirt = 1;
-	j += i*8192 + sb->s_firstdatazone-1;
-	if (j >= sb->s_nzones)
-		return 0;
-	if (!(bh=getblk(dev,j)))
-		panic("new_block: cannot get block");
-	if (bh->b_count != 1)
-		panic("new block: count is != 1");
-	clear_block(bh->b_data);
-	bh->b_uptodate = 1;
-	bh->b_dirt = 1;
-	brelse(bh);
-	return j;
+    if (!(sb = get_super(dev)))
+        panic("trying to get new block from nonexistant device");
+    j = 8192;
+    for (i=0 ; i<8 ; i++)
+        if ((bh=sb->s_zmap[i]))
+            if ((j=find_first_zero(bh->b_data))<8192)
+                break;
+    if (i>=8 || !bh || j>=8192)
+        return 0;
+    if (set_bit(j,bh->b_data))
+        panic("new_block: bit already set");
+    bh->b_dirt = 1;
+    j += i*8192 + sb->s_firstdatazone-1;
+    if (j >= sb->s_nzones)
+        return 0;
+    if (!(bh=getblk(dev,j)))
+        panic("new_block: cannot get block");
+    if (bh->b_count != 1)
+        panic("new block: count is != 1");
+    clear_block(bh->b_data);
+    bh->b_uptodate = 1;
+    bh->b_dirt = 1;
+    brelse(bh);
+    return j;
 }
 
 void free_inode(struct m_inode * inode)

@@ -27,6 +27,7 @@
 #include <asm/io.h>
 
 extern int end;
+extern struct super_block super_block[NR_SUPER];
 extern void put_super(int);
 extern void invalidate_inodes(int);
 
@@ -81,48 +82,14 @@ static inline void do_sync(int dev)
     }
 }
 
-static void inline invalidate_buffers(int dev)
+static inline void invalidate_buffers(int dev)
 {
-	int i;
-	struct buffer_head * bh;
-
-	bh = start_buffer;
-	for (i=0 ; i<NR_BUFFERS ; i++,bh++) {
-		if (bh->b_dev != dev)
-			continue;
-		wait_on_buffer(bh);
-		if (bh->b_dev == dev)
-			bh->b_uptodate = bh->b_dirt = 0;
-	}
-}
-
-/*
- * This routine checks whether a floppy has been changed, and
- * invalidates all buffer-cache-entries in that case. This
- * is a relatively slow routine, so we have to try to minimize using
- * it. Thus it is called only upon a 'mount' or 'open'. This
- * is the best way of combining speed and utility, I think.
- * People changing diskettes in the middle of an operation deserve
- * to loose :-)
- *
- * NOTE! Although currently this is only for floppies, the idea is
- * that any additional removable block-device will use this routine,
- * and that mount/open needn't know that floppies/whatever are
- * special.
- */
-void check_disk_change(int dev)
-{
-	int i;
-
-	if (MAJOR(dev) != 2)
-		return;
-	if (!floppy_change(dev & 0x03))
-		return;
-	for (i=0 ; i<NR_SUPER ; i++)
-		if (super_block[i].s_dev == dev)
-			put_super(super_block[i].s_dev);
-	invalidate_inodes(dev);
-	invalidate_buffers(dev);
+    struct buffer_head* bh = start_buffer;
+    for (register int i = 0; i < NR_BUFFERS; ++i, ++bh) {
+        if (bh->b_dev != dev) continue;
+        wait_on_buffer(bh);
+        if (bh->b_dev == dev) bh->b_uptodate = bh->b_dirt = 0;
+    }
 }
 
 #define _hashfn(dev,block) (((unsigned)(dev^block))%NR_HASH)
@@ -164,7 +131,7 @@ static inline void insert_into_queues(struct buffer_head * bh)
 }
 
 // No lock! The return value is unreliable!
-static struct buffer_head* find_buffer(int dev, int block)
+static inline struct buffer_head* find_buffer(int dev, int block)
 {		
     struct buffer_head* tmp = hash(dev, block);
     while (tmp) {
@@ -194,7 +161,7 @@ static inline struct buffer_head* find_free_buffer()
     return NULL;
 }
 
-#define COPYBLK(from,to) \
+#define COPYBLK(from, to) \
     __asm__ ("cld\n\t" \
              "rep movsl\n\t" \
              : \
@@ -204,67 +171,10 @@ static inline struct buffer_head* find_free_buffer()
              "D" (to) \
             )
 
-/*
- * bread_page reads four buffers into memory at the desired address. It's
- * a function of its own, as there is some speed to be got by reading them
- * all at the same time, not waiting for one to be read, and then another
- * etc.
- */
-void bread_page(unsigned long address,int dev,int b[4])
-{
-	struct buffer_head * bh[4];
-	int i;
-
-	for (i=0 ; i<4 ; i++)
-		if (b[i]) {
-			if ((bh[i] = getblk(dev,b[i])))
-				if (!bh[i]->b_uptodate)
-					ll_rw_block(READ,bh[i]);
-		} else
-			bh[i] = NULL;
-	for (i=0 ; i<4 ; i++,address += BLOCK_SIZE)
-		if (bh[i]) {
-			wait_on_buffer(bh[i]);
-			if (bh[i]->b_uptodate)
-				COPYBLK((unsigned long) bh[i]->b_data,address);
-			brelse(bh[i]);
-		}
-}
-
-/*
- * Ok, breada can be used as bread, but additionally to mark other
- * blocks for reading as well. End the argument list with a negative
- * number.
- */
-struct buffer_head * breada(int dev,int first, ...)
-{
-	va_list args;
-	struct buffer_head * bh, *tmp;
-
-	va_start(args,first);
-	if (!(bh=getblk(dev,first)))
-		panic("bread: getblk returned NULL\n");
-	if (!bh->b_uptodate)
-		ll_rw_block(READ,bh);
-	while ((first=va_arg(args,int))>=0) {
-		tmp=getblk(dev,first);
-		if (tmp) {
-			if (!tmp->b_uptodate)
-				ll_rw_block(READA,bh);
-			tmp->b_count--;
-		}
-	}
-	va_end(args);
-	wait_on_buffer(bh);
-	if (bh->b_uptodate)
-		return bh;
-	brelse(bh);
-	return (NULL);
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
+
 void buffer_init(laddr_t buffer_end)
 {
     struct buffer_head * h = start_buffer;
@@ -294,8 +204,15 @@ void buffer_init(laddr_t buffer_end)
     h->b_next_free = free_list;
     //////////////////////////////////////////////////////////////////////////
     /*
-     * for (register int i=0;i < NR_HASH; ++i) hash_table[i]=NULL;
+     * for (register int i = 0;i < NR_HASH; ++i) hash_table[i]=NULL;
      */
+#ifdef DEBUG
+    for (register int i = 0;i < NR_HASH; ++i) 
+        if (hash_table[i]) { 
+            printkc("buffer_init: hash_table is not initialized properly!\n");
+            panic("buffer_init: hash_table is not initialized properly!");
+        }
+#endif
 }	
 
 /*
@@ -420,9 +337,7 @@ void brelse(struct buffer_head* buf)
 struct buffer_head* bread(int dev, int block)
 {
 	struct buffer_head* bh = getblk(dev, block);
-#ifdef DEBUG
 	if (!bh) panic("bread: getblk returned NULL\n");
-#endif
     //////////////////////////////////////////////////////////////////////////
     /* 
      * Step 1. If the buffer block alreayd exists and is up-to-date,
@@ -447,6 +362,68 @@ struct buffer_head* bread(int dev, int block)
      */
 	brelse(bh); 
     return NULL;
+}
+
+/*
+ * Ok, breada can be used as bread, but additionally to mark other
+ * blocks for reading as well. End the argument list with a negative
+ * number.
+ */
+struct buffer_head* breada(int dev, int first, ...)
+{
+    va_list args;
+    va_start(args, first);
+    //////////////////////////////////////////////////////////////////////////
+    struct buffer_head* bh = getblk(dev, first);
+    if (!bh) panic("bread: getblk returned NULL\n");
+    //////////////////////////////////////////////////////////////////////////
+    if (!bh->b_uptodate) ll_rw_block(READ, bh);
+    //////////////////////////////////////////////////////////////////////////
+    while ((first = va_arg(args, int)) >= 0) {
+        struct buffer_head* tmp = getblk(dev, first);
+        if (tmp) {
+            if (!tmp->b_uptodate) ll_rw_block(READA, tmp);
+            //////////////////////////////////////////////////////////////////
+            --tmp->b_count;     // reada: read ahead but not referenced
+        }
+    }
+    //////////////////////////////////////////////////////////////////////////
+    va_end(args);
+    //////////////////////////////////////////////////////////////////////////
+    wait_on_buffer(bh);
+    if (bh->b_uptodate) return bh;
+    //////////////////////////////////////////////////////////////////////////
+    brelse(bh);
+    return NULL;
+}
+
+/*
+ * bread_page reads four buffers into memory at the desired address. It's
+ * a function of its own, as there is some speed to be got by reading them
+ * all at the same time, not waiting for one to be read, and then another
+ * etc.
+ */
+void bread_page(laddr_t address, int dev, int b[4])
+{
+    struct buffer_head* bh[4];
+    register int i;
+    //////////////////////////////////////////////////////////////////////////
+    for (i = 0; i < 4; ++i)
+        if (b[i]) {
+            bh[i] = getblk(dev,b[i]);
+            if (bh[i])
+                if (!bh[i]->b_uptodate) ll_rw_block(READ, bh[i]);
+        } 
+        else
+            bh[i] = NULL;
+    //////////////////////////////////////////////////////////////////////////
+    for (i = 0; i < 4; ++i, address += BLOCK_SIZE)
+        if (bh[i]) {
+            wait_on_buffer(bh[i]);
+            if (bh[i]->b_uptodate)
+                COPYBLK((laddr_t) bh[i]->b_data, address);
+            brelse(bh[i]);
+        }
 }
 
 // no check device validity! Be careful
@@ -475,5 +452,30 @@ int sys_sync(void)
 	return 0;
 }
 
-
+/*
+ * This routine checks whether a floppy has been changed, and
+ * invalidates all buffer-cache-entries in that case. This
+ * is a relatively slow routine, so we have to try to minimize using
+ * it. Thus it is called only upon a 'mount' or 'open'. This
+ * is the best way of combining speed and utility, I think.
+ * People changing diskettes in the middle of an operation deserve
+ * to loose :-)
+ *
+ * NOTE! Although currently this is only for floppies, the idea is
+ * that any additional removable block-device will use this routine,
+ * and that mount/open needn't know that floppies/whatever are
+ * special.
+ */
+void check_disk_change(int dev)
+{
+    if (MAJOR(dev) != 2) return;    // only for floppy
+    if (!floppy_change(dev & 0x03)) return;
+    //////////////////////////////////////////////////////////////////////////
+    for (register int i = 0; i < NR_SUPER; ++i)
+        if (super_block[i].s_dev == dev)
+            put_super(super_block[i].s_dev);
+    //////////////////////////////////////////////////////////////////////////
+    invalidate_inodes(dev);
+    invalidate_buffers(dev);
+}
 

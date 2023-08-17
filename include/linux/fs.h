@@ -195,7 +195,7 @@ extern struct buffer_head* getblk(int dev, int block);
 extern void ll_rw_block(int rw, struct buffer_head* bh);
 extern void brelse(struct buffer_head* buf);
 extern struct buffer_head* bread(int dev, int block);
-extern void bread_page(unsigned long addr, int dev, int b[4]);
+extern void bread_page(laddr_t addr, int dev, int b[4]);
 extern struct buffer_head* breada(int dev, int block, ...);
 extern int new_block(int dev);
 extern void free_block(int dev, int block);
