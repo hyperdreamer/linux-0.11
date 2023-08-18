@@ -133,7 +133,7 @@
 #define _syscall0(type, name) \
 type name(void) \
 { \
-    register long __res asm("%eax"); \
+    long __res; \
     __asm__ __volatile__("int $0x80\n\t" \
                          : "=a" (__res) \
                          : "0" (__NR_##name) \
@@ -148,7 +148,7 @@ type name(void) \
 #define _syscall1(type, name, atype, a) \
 type name(atype a) \
 { \
-    register long __res asm("%eax"); \
+    long __res; \
     __asm__ __volatile__("int $0x80\n\t" \
                          : \
                          "=a" (__res) \
@@ -166,7 +166,7 @@ type name(atype a) \
 #define _syscall2(type, name, atype, a, btype, b) \
 type name(atype a, btype b) \
 { \
-    register long __res asm("%eax"); \
+    long __res; \
     __asm__ __volatile__("int $0x80" \
                          : \
                          "=a" (__res) \
@@ -185,7 +185,7 @@ type name(atype a, btype b) \
 #define _syscall3(type, name, atype, a, btype, b, cctype, c) \
 type name(atype a, btype b, cctype c) \
 { \
-    register long __res asm("%eax"); \
+    long __res; \
     __asm__ __volatile__("int $0x80" \
                          : \
                          "=a" (__res) \
@@ -197,7 +197,7 @@ type name(atype a, btype b, cctype c) \
                         ); \
     if (__res >= 0) return (type) __res; \
     \
-    errno=-__res; \
+    errno = -__res; \
     return -1; \
 }
 

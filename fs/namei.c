@@ -71,7 +71,7 @@ static int match(int len, const char* name, struct dir_entry* de)
 	if (!de || !de->inode || len > NAME_LEN) return 0;
 	if (len < NAME_LEN && de->name[len]) return 0;
 
-	register int same __asm__("eax");
+	int same;
     __asm__ ("cld\n\t"
              "fs repe cmpsb\n\t"
              "setz %%al\n\t"
@@ -84,6 +84,73 @@ static int match(int len, const char* name, struct dir_entry* de)
              "c" (len)
             );
     return same;
+}
+
+/*
+ *	add_entry()
+ *
+ * adds a file entry to the specified directory, using the same
+ * semantics as find_entry(). It returns NULL if it failed.
+ *
+ * NOTE!! The inode part of 'de' is left at 0 - which means you
+ * may not sleep between calling this and putting something into
+ * the entry, as someone else might have used it while you slept.
+ */
+static struct buffer_head * add_entry(struct m_inode * dir,
+	const char * name, int namelen, struct dir_entry ** res_dir)
+{
+	int block,i;
+	struct buffer_head * bh;
+	struct dir_entry * de;
+
+	*res_dir = NULL;
+#ifdef NO_TRUNCATE
+	if (namelen > NAME_LEN)
+		return NULL;
+#else
+	if (namelen > NAME_LEN)
+		namelen = NAME_LEN;
+#endif
+	if (!namelen)
+		return NULL;
+	if (!(block = dir->i_zone[0]))
+		return NULL;
+	if (!(bh = bread(dir->i_dev,block)))
+		return NULL;
+	i = 0;
+	de = (struct dir_entry *) bh->b_data;
+	while (1) {
+		if ((char *)de >= BLOCK_SIZE+bh->b_data) {
+			brelse(bh);
+			bh = NULL;
+			block = create_block(dir,i/DIR_ENTRIES_PER_BLOCK);
+			if (!block)
+				return NULL;
+			if (!(bh = bread(dir->i_dev,block))) {
+				i += DIR_ENTRIES_PER_BLOCK;
+				continue;
+			}
+			de = (struct dir_entry *) bh->b_data;
+		}
+		if (i*sizeof(struct dir_entry) >= dir->i_size) {
+			de->inode=0;
+			dir->i_size = (i+1)*sizeof(struct dir_entry);
+			dir->i_dirt = 1;
+			dir->i_ctime = CURRENT_TIME;
+		}
+		if (!de->inode) {
+			dir->i_mtime = CURRENT_TIME;
+			for (i=0; i < NAME_LEN ; i++)
+				de->name[i]=(i<namelen)?get_fs_byte(name+i):0;
+			bh->b_dirt = 1;
+			*res_dir = de;
+			return bh;
+		}
+		de++;
+		i++;
+	}
+	brelse(bh);
+	return NULL;
 }
 
 /*
@@ -161,10 +228,13 @@ static struct buffer_head* find_entry(struct m_inode** dir,
             }
             de = (struct dir_entry*) bh->b_data;
         }
+        //////////////////////////////////////////////////////////////////////
+        /* system_call: name is in %fs, de in %ds */
         if (match(namelen, name, de)) {
             *res_dir = de;
             return bh;
         }
+        //////////////////////////////////////////////////////////////////////
         ++de;
         ++i;
     }
@@ -173,79 +243,12 @@ static struct buffer_head* find_entry(struct m_inode** dir,
 }
 
 /*
- *	add_entry()
- *
- * adds a file entry to the specified directory, using the same
- * semantics as find_entry(). It returns NULL if it failed.
- *
- * NOTE!! The inode part of 'de' is left at 0 - which means you
- * may not sleep between calling this and putting something into
- * the entry, as someone else might have used it while you slept.
- */
-static struct buffer_head * add_entry(struct m_inode * dir,
-	const char * name, int namelen, struct dir_entry ** res_dir)
-{
-	int block,i;
-	struct buffer_head * bh;
-	struct dir_entry * de;
-
-	*res_dir = NULL;
-#ifdef NO_TRUNCATE
-	if (namelen > NAME_LEN)
-		return NULL;
-#else
-	if (namelen > NAME_LEN)
-		namelen = NAME_LEN;
-#endif
-	if (!namelen)
-		return NULL;
-	if (!(block = dir->i_zone[0]))
-		return NULL;
-	if (!(bh = bread(dir->i_dev,block)))
-		return NULL;
-	i = 0;
-	de = (struct dir_entry *) bh->b_data;
-	while (1) {
-		if ((char *)de >= BLOCK_SIZE+bh->b_data) {
-			brelse(bh);
-			bh = NULL;
-			block = create_block(dir,i/DIR_ENTRIES_PER_BLOCK);
-			if (!block)
-				return NULL;
-			if (!(bh = bread(dir->i_dev,block))) {
-				i += DIR_ENTRIES_PER_BLOCK;
-				continue;
-			}
-			de = (struct dir_entry *) bh->b_data;
-		}
-		if (i*sizeof(struct dir_entry) >= dir->i_size) {
-			de->inode=0;
-			dir->i_size = (i+1)*sizeof(struct dir_entry);
-			dir->i_dirt = 1;
-			dir->i_ctime = CURRENT_TIME;
-		}
-		if (!de->inode) {
-			dir->i_mtime = CURRENT_TIME;
-			for (i=0; i < NAME_LEN ; i++)
-				de->name[i]=(i<namelen)?get_fs_byte(name+i):0;
-			bh->b_dirt = 1;
-			*res_dir = de;
-			return bh;
-		}
-		de++;
-		i++;
-	}
-	brelse(bh);
-	return NULL;
-}
-
-/*
  *	get_dir_i(): old name get_dir
  *
  * Getdir traverses the pathname until it hits the topmost directory.
  * It returns NULL on failure.
  */
-static struct m_inode * get_dir_i(const char* pathname)
+static struct m_inode* get_dir_i(const char* pathname)
 {
     char c;
     struct m_inode* inode;
@@ -268,7 +271,7 @@ static struct m_inode * get_dir_i(const char* pathname)
     //////////////////////////////////////////////////////////////////////////
 
     //////////////////////////////////////////////////////////////////////////
-    inode->i_count++;
+    inode->i_count++;       // later iput() will decrement it
     while (true) {
         //////////////////////////////////////////////////////////////////////
         if (!S_ISDIR(inode->i_mode) || !permission(inode, MAY_EXEC)) {
@@ -291,9 +294,8 @@ static struct m_inode * get_dir_i(const char* pathname)
         if (!c) return inode;
         //////////////////////////////////////////////////////////////////////
      
-        struct dir_entry* de;
-     
         //////////////////////////////////////////////////////////////////////
+        struct dir_entry* de;
         struct buffer_head* bh = find_entry(&inode, thisname, namelen, &de);
         if (!bh) {
             iput(inode);
@@ -304,7 +306,7 @@ static struct m_inode * get_dir_i(const char* pathname)
         int idev = inode->i_dev;
         brelse(bh);
         iput(inode);
-        inode = iget(idev, inr);
+        inode = iget(idev, inr);    // iget() will handle mounting
         if (!inode) return NULL;
     }
 }
@@ -323,11 +325,10 @@ static struct m_inode* dir_namei(const char* pathname,
     if (!dir_i) return NULL;
     //////////////////////////////////////////////////////////////////////////
 
+    //////////////////////////////////////////////////////////////////////////
     const char* __basename = pathname;
     char c;
-
-    //////////////////////////////////////////////////////////////////////////
-    // Note that pathname like "a/" will returns basename '\0' with length 0  
+    // Note that pathname like "*/" will return basename '\0' with length 0  
     while ((c = get_fs_byte(pathname++)))
         if (c == '/') __basename = pathname;
     *base_len = pathname - __basename - 1;  // -1 is crucial
@@ -421,10 +422,10 @@ struct m_inode* namei(const char* pathname)
     int dev = dir->i_dev;
     brelse(bh);
     iput(dir);
-    dir=iget(dev,inr);
+    dir = iget(dev, inr);       // iget() will handle mounting
     if (dir) {
-        dir->i_atime=CURRENT_TIME;
-        dir->i_dirt=1;
+        dir->i_atime = CURRENT_TIME;
+        dir->i_dirt = 1;
     }
     return dir;
 }
@@ -829,3 +830,4 @@ int sys_link(const char * oldname, const char * newname)
 	iput(oldinode);
 	return 0;
 }
+
