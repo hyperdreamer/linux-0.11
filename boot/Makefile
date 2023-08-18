@@ -16,7 +16,6 @@ LDFILE_BOOT := boot/boot.ld
 
 OBJCOPY 	:= objcopy -R .pdr -R .comment -R .note -S -O binary
 CTAGS		:= /usr/bin/ctags --c-kinds=+p --c++-kinds=+p --fields=+iaS --extra=+qf -R
-STRIP		:= strip
 
 #
 # ROOT_DEV specifies the default root-device when making the image.
@@ -55,10 +54,7 @@ int/main.o: init/main.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 tools/kernel: tools/system
-	cp $< $<.tmp
-	strip $<.tmp
-	$(OBJCOPY) $<.tmp $@
-	rm $<.tmp
+	$(OBJCOPY) $< $@
 
 tools/system: $(components) $(LDFILE)
 	$(LD) $(LDFLAGS) $(components) -o $@ -T $(LDFILE) > System.map

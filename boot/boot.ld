@@ -1,0 +1,4 @@
+SECTIONS
+{
+    .text 0x0 : { *(.text) } = 0
+}
