@@ -30,10 +30,6 @@
 #define MAY_WRITE 2
 #define MAY_READ 4
 
-#ifdef DEBUG
-static char buf[BLOCK_SIZE];
-#endif
-
 /*
  *	permission()
  *
@@ -546,6 +542,7 @@ struct m_inode* namei(const char* pathname)
 
 #undef DEBUG
 #ifdef DEBUG
+    char buf[BLOCK_SIZE];
     char* pbuf = buf;
     const char* copypath = pathname;
     char c;
