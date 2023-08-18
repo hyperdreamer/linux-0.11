@@ -30,6 +30,10 @@
 #define MAY_WRITE 2
 #define MAY_READ 4
 
+#ifdef DEBUG
+static char buf[BLOCK_SIZE];
+#endif
+
 /*
  *	permission()
  *
@@ -403,6 +407,17 @@ struct m_inode* namei(const char* pathname)
     struct m_inode* dir;
     struct buffer_head* bh;
     struct dir_entry* de;
+
+#undef DEBUG
+#ifdef DEBUG
+    char* pbuf = buf;
+    const char* copypath = pathname;
+    char c;
+    while ((c = get_fs_byte(copypath++)))
+        *(pbuf++) = c; 
+    *(pbuf++) = c;  // '\0'
+    printkc("namei(%s)\n", buf);
+#endif
 
     //////////////////////////////////////////////////////////////////////////
     dir = dir_namei(pathname, &base_len, &basename);
