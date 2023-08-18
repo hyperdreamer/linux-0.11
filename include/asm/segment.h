@@ -14,12 +14,8 @@ static inline void copy_block(const char* from, char* to, size_t size)
 
 static inline void copy_block_fs2es(const char* from, char* to, size_t size)
 {
-    __asm__ ("pushw %%ds\n\t"
-             "pushw %%fs\n\n"
-             "popw %%ds\n\t"        // set %ds := %fs
-             "cld\n\t"
-             "rep movsb\n\t"
-             "popw %%ds\n\t"
+    __asm__ ("cld\n\t"
+             "fs rep movsb\n\t"
              :
              :
              "S" (from), 
