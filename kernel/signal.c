@@ -4,6 +4,8 @@
  *  (C) 1991  Linus Torvalds
  */
 
+#include <errno.h>
+
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <asm/segment.h>
@@ -129,4 +131,30 @@ void do_signal(long signr, long eax, long ebx, long ecx, long edx,
 	put_fs_long(eflags, tmp_esp++);
 	put_fs_long(old_eip, tmp_esp++);
 	current->blocked |= sa->sa_mask;	// mask current processed signal
+}
+
+int sys_sigpending(sigset_t *set)
+{
+    /* fill in "set" with signals pending but blocked. */
+    verify_area(set,4);
+    put_fs_long(current->blocked & current->signal, (unsigned long *)set);
+    return 0;
+}
+
+/* atomically swap in the new signal mask, and wait for a signal.
+ *
+ * we need to play some games with syscall restarting.  We get help
+ * from the syscall library interface.  Note that we need to coordinate
+ * the calling convention with the libc routine.
+ *
+ * "set" is just the sigmask as described in 1003.1-1988, 3.3.7.
+ * 	It is assumed that sigset_t can be passed as a 32 bit quantity.
+ *
+ * "restart" holds a restart indication.  If it's non-zero, then we 
+ * 	install the old mask, and return normally.  If it's zero, we store 
+ * 	the current mask in old_mask and block until a signal comes in.
+ */
+int sys_sigsuspend(int restart, unsigned long old_mask, unsigned long set)
+{
+    return -ENOSYS;
 }

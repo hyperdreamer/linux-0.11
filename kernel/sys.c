@@ -225,3 +225,72 @@ int sys_umask(int mask)
 	current->umask = mask & 0777;
 	return old;
 }
+
+int sys_sethostname(char *name, int len)
+{
+    return -ENOSYS;
+}
+
+int sys_getrlimit()
+{
+    return -ENOSYS;
+}
+
+int sys_setrlimit()
+{
+    return -ENOSYS;
+}
+
+/*
+ * It would make sense to put struct rusuage in the task_struct,
+ * except that would make the task_struct be *really big*.  After
+ * task_struct gets moved into malloc'ed memory, it would
+ * make sense to do this.  It will make moving the rest of the information
+ * a lot simpler!  (Which we're not doing right now because we're not
+ * measuring them yet).
+ */
+int sys_getrusage()
+{
+    return -ENOSYS;
+}
+
+int sys_gettimeofday()
+{
+    return -ENOSYS;
+}
+
+/*
+ * The first time we set the timezone, we will warp the clock so that
+ * it is ticking GMT time instead of local time.  Presumably, 
+ * if someone is setting the timezone then we are running in an
+ * environment where the programs understand about timezones.
+ * This should be done at boot time in the /etc/rc script, as
+ * soon as possible, so that the clock can be set right.  Otherwise,
+ * various programs will get confused when the clock gets warped.
+ */
+int sys_settimeofday()
+{
+    return -ENOSYS;
+}
+
+int sys_getgroups(int gidsetsize, gid_t *grouplist)
+{
+    return -ENOSYS;
+}
+
+int sys_setgroups(int gidsetsize, gid_t *grouplist)
+{
+    return -ENOSYS;
+}
+
+int sys_select()
+{
+    return -ENOSYS;
+}
+
+int sys_uselib()
+{
+    return -ENOSYS;
+}
+
+

@@ -389,6 +389,142 @@ static int empty_dir(struct m_inode * inode)
 	return 1;
 }
 
+static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode);
+
+/*
+ *	get_dir() from linux-0.12
+ *
+ * Getdir traverses the pathname until it hits the topmost directory.
+ * It returns NULL on failure.
+ */
+static struct m_inode * get_dir(const char * pathname, struct m_inode * inode)
+{
+	char c;
+	const char * thisname;
+	struct buffer_head * bh;
+	int namelen,inr;
+	struct dir_entry * de;
+	struct m_inode * dir;
+
+	if (!inode) {
+		inode = current->pwd;
+		inode->i_count++;
+	}
+	if ((c=get_fs_byte(pathname))=='/') {
+		iput(inode);
+		inode = current->root;
+		pathname++;
+		inode->i_count++;
+	}
+	while (1) {
+		thisname = pathname;
+		if (!S_ISDIR(inode->i_mode) || !permission(inode,MAY_EXEC)) {
+			iput(inode);
+			return NULL;
+		}
+		for(namelen=0;(c=get_fs_byte(pathname++))&&(c!='/');namelen++)
+			/* nothing */ ;
+		if (!c)
+			return inode;
+		if (!(bh = find_entry(&inode,thisname,namelen,&de))) {
+			iput(inode);
+			return NULL;
+		}
+		inr = de->inode;
+		brelse(bh);
+		dir = inode;
+		if (!(inode = iget(dir->i_dev,inr))) {
+			iput(dir);
+			return NULL;
+		}
+		if (!(inode = follow_link(dir,inode)))
+			return NULL;
+	}
+}
+
+static struct m_inode * dir_namei_p(const char * pathname,
+	int * namelen, const char ** name, struct m_inode * base)
+{
+	char c;
+	const char * basename;
+	struct m_inode * dir;
+
+	if (!(dir = get_dir(pathname,base)))
+		return NULL;
+	basename = pathname;
+	while (c=get_fs_byte(pathname++))
+		if (c=='/')
+			basename=pathname;
+	*namelen = pathname-basename-1;
+	*name = basename;
+	return dir;
+}
+
+static struct m_inode * _namei(const char * pathname, struct m_inode * base,
+	int follow_links)
+{
+	const char * basename;
+	int inr,namelen;
+	struct m_inode * inode;
+	struct buffer_head * bh;
+	struct dir_entry * de;
+
+	if (!(base = dir_namei_p(pathname,&namelen,&basename,base)))
+		return NULL;
+	if (!namelen)			/* special case: '/usr/' etc */
+		return base;
+	bh = find_entry(&base,basename,namelen,&de);
+	if (!bh) {
+		iput(base);
+		return NULL;
+	}
+	inr = de->inode;
+	brelse(bh);
+	if (!(inode = iget(base->i_dev,inr))) {
+		iput(base);
+		return NULL;
+	}
+	if (follow_links)
+		inode = follow_link(base,inode);
+	else
+		iput(base);
+	inode->i_atime=CURRENT_TIME;
+	inode->i_dirt=1;
+	return inode;
+}
+
+static struct m_inode * follow_link(struct m_inode * dir, struct m_inode * inode)
+{
+	unsigned short fs;
+	struct buffer_head * bh;
+
+	if (!dir) {
+		dir = current->root;
+		dir->i_count++;
+	}
+	if (!inode) {
+		iput(dir);
+		return NULL;
+	}
+	if (!S_ISLNK(inode->i_mode)) {
+		iput(dir);
+		return inode;
+	}
+	__asm__("mov %%fs,%0":"=r" (fs));
+	if (fs != 0x17 || !inode->i_zone[0] ||
+	   !(bh = bread(inode->i_dev, inode->i_zone[0]))) {
+		iput(dir);
+		iput(inode);
+		return NULL;
+	}
+	iput(inode);
+	__asm__("mov %0,%%fs"::"r" ((unsigned short) 0x10));
+	inode = _namei(bh->b_data,dir,0);
+	__asm__("mov %0,%%fs"::"r" (fs));
+	brelse(bh);
+	return inode;
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -846,3 +982,12 @@ int sys_link(const char * oldname, const char * newname)
 	return 0;
 }
 
+int sys_symlink()
+{
+    return -ENOSYS;
+}
+
+struct m_inode * lnamei(const char * pathname)
+{
+	return _namei(pathname, NULL, 0);
+}
