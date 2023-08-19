@@ -44,7 +44,7 @@ sa_mask = 4
 sa_flags = 8
 sa_restorer = 12
 
-nr_system_calls = 86 
+nr_system_calls = 87
 
 /*
  * Ok, I get parallel printer interrupts while using the floppy for some
@@ -54,13 +54,19 @@ nr_system_calls = 86
  # instead of "push -- pop" by Henry
 .globl system_call, sys_fork, timer_interrupt, sys_execve
 .globl hd_interrupt, floppy_interrupt, parallel_interrupt
-.globl device_not_available, coprocessor_error
+.globl device_not_available, coprocessor_error, do_bad_syscall
 
 #.align 2
 .p2align 2
 bad_sys_call:
-	movl $-1, %eax
-	iret
+    pushl %eax
+    call do_bad_syscall
+    movl %eax, (%esp)       # the return value from do_bad_syscall
+	movl current, %eax
+	cmpl $0, state(%eax)	# is the current process runnable?
+	jne reschedule          # if not, then reschedule
+	cmpl $0, counter(%eax)	# counter
+    # then go to reschedule
 
 #.align 2
 .p2align 2
@@ -71,8 +77,6 @@ reschedule:
 #.align 2
 .p2align 2
 system_call:
-	cmpl $nr_system_calls-1, %eax
-	ja bad_sys_call
 	pushl %ds
 	pushl %es
 	pushl %fs
@@ -84,6 +88,8 @@ system_call:
 	movw %dx, %es
 	movl $0x17, %edx    # %fs = %0x17: ldt[2]		
 	movw %dx, %fs        
+	cmpl $nr_system_calls-1, %eax
+	ja bad_sys_call
 	call sys_call_table(, %eax, 4)
 	pushl %eax          # return value of system call
 	movl current, %eax

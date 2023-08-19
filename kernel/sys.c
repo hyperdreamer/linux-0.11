@@ -293,4 +293,12 @@ int sys_uselib()
     return -ENOSYS;
 }
 
+int do_bad_syscall(int syscall_nr)
+{
+#ifdef DEBUG
+    printk("Bad syscall nr: %d\n", syscall_nr);
+    printkc("Bad syscall nr: %d\n", syscall_nr);
+#endif
+    return -EPERM;
+}
 
