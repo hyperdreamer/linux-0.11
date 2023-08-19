@@ -95,7 +95,7 @@ static void add_request(struct blk_dev_struct* dev, struct request* req)
     req->next = tmp->next;
     tmp->next = req;
     //////////////////////////////////////////////////////////////////////////
-//#undef DEBUG
+#undef DEBUG
 #ifdef DEBUG
     printkc("A HD I/O request Inserted: Dev: %#x, Sector: %d, R/W: %s\n",
             req->dev, req->sector, (req->cmd)?"W":"R");

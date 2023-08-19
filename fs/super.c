@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-/* set_bit uses setb, as gas doesn't recognize setc */
+/* bit_set uses setb, as gas doesn't recognize setc */
 #define bit_set(bitnr, addr) \
     ({ \
         int __res ; \
@@ -70,12 +70,13 @@ static inline struct super_block* get_free_super_directly()
 static struct super_block* read_super(int dev)
 {
     if (!dev) return NULL;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
 repeat:
     check_disk_change(dev);     // TO_READ
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     struct super_block* s = get_super(dev);
     if (s) return s;
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     s = get_free_super_directly();
 #ifdef DEBUG
@@ -84,7 +85,7 @@ repeat:
         printkc("An Interrupt must've happened!\n");
     }
 #endif
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     lock_super(s);
     if (s->s_dev) { // it has been taken
         unlock_super(s);
@@ -93,13 +94,14 @@ repeat:
 #endif
         goto repeat;
     }
+    /***************************************************************/
     s->s_dev = dev;
     s->s_isup = NULL;
     s->s_imount = NULL;
     s->s_time = 0;
     s->s_rd_only = 0;
     s->s_dirt = 0;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     // lock super block s & possible hang on bread: possible deadlock?
     // bread() return value is unreliable, Need to check it
     struct buffer_head* bh = bread(dev, 1);
@@ -111,7 +113,7 @@ repeat:
     /***************************************************************/
     *((struct d_super_block *) s) = *((struct d_super_block *) bh->b_data);
     brelse(bh);
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     if (s->s_magic != SUPER_MAGIC) {
         s->s_dev = 0;
         unlock_super(s);
@@ -121,20 +123,20 @@ repeat:
     register int i;
     for (i = 0; i < I_MAP_SLOTS; ++i) s->s_imap[i] = NULL;
     for (i = 0; i < Z_MAP_SLOTS; ++i) s->s_zmap[i] = NULL;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     int block = 2; // boot block & super block
     for (i = 0; i < s->s_imap_blocks; ++i)
         if ((s->s_imap[i] = bread(dev, block)))
             ++block;
         else
             break;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     for (i = 0 ; i < s->s_zmap_blocks; i++)
         if ((s->s_zmap[i] = bread(dev, block)))
             ++block;
         else
             break;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     // something wrong with the super block read
     if (block != 2 + s->s_imap_blocks + s->s_zmap_blocks) {
         for(i = 0; i < s->s_imap_blocks; ++i) brelse(s->s_imap[i]);
@@ -147,14 +149,22 @@ repeat:
     s->s_imap[0]->b_data[0] |= 1;   // make sure i-node 0 is not used
     s->s_zmap[0]->b_data[0] |= 1;   // make sure zone 0 is used by the root
     unlock_super(s);
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
+#ifdef DEBUG
+    printkc("\nDev: %#x, IMAP blocks: %d, ZMAP blocks: %d, "
+            "Number of the 1st data zone: %d\n",
+            s->s_dev, s->s_imap_blocks, s->s_zmap_blocks,
+            s->s_firstdatazone);
+    printkc("\nIndex of the 1st data zone by Calculation: %d\n\n",
+            2 + s->s_imap_blocks + s->s_zmap_blocks +
+            s->s_ninodes / INODES_PER_BLOCK);
+#endif
     return s;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
+/*
+ **************************** INTERFACE **************************************
+ */
 
 struct super_block* get_super(int dev)
 {
@@ -206,11 +216,10 @@ void put_super(int dev)
 int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 {
 	int dev;
-
-    //////////////////////////////////////////////////////////////////////////
 	struct m_inode* dev_i = namei(dev_name);
+    /***************************************************************/
 	if (!dev_i) return -ENOENT;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
 	dev = dev_i->i_zone[0];
 	if (!S_ISBLK(dev_i->i_mode)) {
 		iput(dev_i);
@@ -218,35 +227,43 @@ int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 	}
 	iput(dev_i);
     //////////////////////////////////////////////////////////////////////////
-
     //////////////////////////////////////////////////////////////////////////
     struct m_inode* dir_i = namei(dir_name);
-	if (!dir_i)
-		return -ENOENT;
+    /***************************************************************/
+	if (!dir_i) return -ENOENT;
+    /***************************************************************/
 	if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
 		iput(dir_i);
 		return -EBUSY;
 	}
+    /***************************************************************/
 	if (!S_ISDIR(dir_i->i_mode)) {
 		iput(dir_i);
 		return -EPERM;
 	}
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 	struct super_block* sb = read_super(dev);
+    /***************************************************************/
 	if (!sb) {
 		iput(dir_i);
 		return -EBUSY;
 	}
+    /***************************************************************/
 	if (sb->s_imount) {
 		iput(dir_i);
 		return -EBUSY;
 	}
+    /***************************************************************/
 	if (dir_i->i_mount) {
 		iput(dir_i);
 		return -EPERM;
 	}
+    /***************************************************************/
 	sb->s_imount=dir_i;
 	dir_i->i_mount=1;
 	dir_i->i_dirt=1;		/* NOTE! we don't iput(dir_i) */
+    /***************************************************************/
 	return 0;			/* we do that in umount */
 }
 
