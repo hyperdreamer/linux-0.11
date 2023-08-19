@@ -47,7 +47,7 @@ void buffer_init(laddr_t buffer_end);
 #define BLOCK_SIZE 1024
 #define BLOCK_SIZE_BITS 10
 
-#define BLCK_BITS BLOCK_SIZE<<3
+#define BLCK_BITS (BLOCK_SIZE<<3)
 #define BLCK_MASK (BLCK_BITS - 1)
 #define ZMAP_INDX(znr) ((znr) >> BLOCK_SIZE_BITS + 3)
 #define IMAP_INDX ZMAP_INDX
@@ -56,8 +56,8 @@ void buffer_init(laddr_t buffer_end);
 #define NULL ((void *) 0)
 #endif
 
-#define INODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct d_inode))
-#define DIR_ENTRIES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct dir_entry))
+#define INODES_PER_BLOCK (BLOCK_SIZE/sizeof(struct d_inode))
+#define DIR_ENTRIES_PER_BLOCK (BLOCK_SIZE/sizeof(struct dir_entry))
 
 #define PIPE_HEAD(inode) ((inode).i_zone[0])
 #define PIPE_TAIL(inode) ((inode).i_zone[1])
@@ -133,7 +133,10 @@ struct super_block {
     unsigned short s_nzones;        // total nr of zones
     unsigned short s_imap_blocks;   // total nr of blocks for i-node bitmap
     unsigned short s_zmap_blocks;   // total nr of blocks for zone bitmap
-    unsigned short s_firstdatazone; // the block nr of the first data zone
+    //////////////////////////////////////////////////////////////////////////
+    // the zone nr starts at 1: Check the debugging info of read_super()
+    unsigned short s_firstdatazone; // zone nr of the 1st data zone 
+    //////////////////////////////////////////////////////////////////////////
     unsigned short s_log_zone_size; // log_2(blocks / zone)
     unsigned long s_max_size;       // max file size
     unsigned short s_magic;         // magic number for super block validation
