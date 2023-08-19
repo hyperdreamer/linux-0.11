@@ -251,60 +251,56 @@ struct buffer_head* get_hash_table(int dev, int block)
 // Modified by Henry
 struct buffer_head* getblk(int dev, int block)
 {
-    struct buffer_head* tmp;
-
 repeat:
     /* Step 1. Check the hash table */
     struct buffer_head* bh = get_hash_table(dev, block); // reliable
     if (bh) return bh;  // if in hash table directly return it! reliable
     //////////////////////////////////////////////////////////////////////////
-
     /* 
      * Step 2. 
      * if the block is not in the buffer, you have to find a free 
      * buffer block to read into.
      */
     bh = find_free_buffer_directly();    // not reliable
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     // if no free buffer exists, have to wait for one.
     if (!bh) {
         sleep_on(&buffer_wait);
         goto repeat;
     }
-    //////////////////////////////////////////////////////////////////////////
-    // Finally we have a free candiate! But we have to check
+    /***************************************************************/
+    // Finally we have a free candiate! But we have to check dirty flag
     wait_on_buffer(bh);
-    if (bh->b_count) {
-#ifdef DEBUG
-        printkc("During sleep, the empty buffer has been taken!\n");
-        printkc("Got back to search again\n");
-#endif
-        goto repeat;
-    } // the result is still unreliable.
-    //////////////////////////////////////////////////////////////////////////
     while (bh->b_dirt) {
         //sync_dev(bh->b_dev);  // sync the whole device is too much
         // Furthermore, this get rid of an elusive circular dependency:
         // write_inode()
         sync_buffer(bh);
         wait_on_buffer(bh);
-        if (bh->b_count) goto repeat;
     }
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
     if (bh->b_count) {  // lock & check to ensure it is reliable
+#ifdef DEBUG
+        printkc("\ngetblk: The empty buffer block was taken "
+                "while sleeping!\n");
+#endif
         unlock_buffer(bh);
         goto repeat;
     }
+    /***************************************************************/
     /* OK, FINALLY we know that this buffer is the only one of it's kind, */
     /* NOTE!! While we slept waiting for this block, somebody else might */
     /* already have added "this" block to the cache. check it */
     if (find_buffer(dev, block)) {
+#ifdef DEBUG
+        printkc("\ngetblk: Someone already inserted a buffer block "
+                "(%d, %d) while sleeping!\n", dev, block);
+#endif
         unlock_buffer(bh);
         goto repeat;
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     bh->b_count = 1;
     bh->b_dirt = 0;
     bh->b_uptodate = 0;
@@ -313,7 +309,6 @@ repeat:
     bh->b_blocknr = block;
     insert_into_queues(bh);
     unlock_buffer(bh);
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     return bh;
 }
