@@ -71,13 +71,14 @@ static void add_request(struct blk_dev_struct* dev, struct request* req)
     if (req->bh) req->bh->b_dirt = 0;
     //////////////////////////////////////////////////////////////////////////
     struct request* tmp = dev->current_request;
+    //////////////////////////////////////////////////////////////////////////
     if (!tmp) { // if no request before
         dev->current_request = req;
         sti();
         (dev->request_fn)();
         return;
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     while (tmp->next) {
         // tmp < tmp->next && tmp <= req && req < tmp->next
         bool forward = SEC_ORDER(tmp, tmp->next) && 
@@ -93,19 +94,23 @@ static void add_request(struct blk_dev_struct* dev, struct request* req)
     }
     req->next = tmp->next;
     tmp->next = req;
-#undef DEBUG
+    //////////////////////////////////////////////////////////////////////////
+//#undef DEBUG
 #ifdef DEBUG
-    printkc("A HD I/O request Inserted: Dev: %d, Sector: %d, R/W: %s\n",
+    printkc("A HD I/O request Inserted: Dev: %#x, Sector: %d, R/W: %s\n",
             req->dev, req->sector, (req->cmd)?"W":"R");
     printkc("Current Request List is:\n");
-    int i = 1;
+    /***************************************************************/
     tmp = dev->current_request; 
+    int i = 1;
+    /***************************************************************/
     do {
-        printkc("%04d: Dev: %d, Sector: %d, R/W: %s\n\n",
+        printkc("\t%04d: Dev: %#x, Sector: %d, R/W: %s\n\n",
                 i++, tmp->dev, tmp->sector, (tmp->cmd)?"W":"R");
         tmp = tmp->next; 
     } while (tmp);
 #endif
+    //////////////////////////////////////////////////////////////////////////
     sti();
 }
 

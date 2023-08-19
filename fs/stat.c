@@ -66,7 +66,3 @@ int sys_lstat(char* filename, struct stat* statbuf)
 	return 0;
 }
 
-int sys_readlink(const char* path, char* buf, int bufsiz)
-{
-    return -ENOSYS;
-}

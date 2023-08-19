@@ -28,21 +28,28 @@ __asm__ __volatile__("btrl %2,%3\n\tsetnb %%al": \
 "=a" (res):"0" (0),"r" (nr),"m" (*(addr))); \
 res;})
 
-#define find_first_zero(addr) ({ \
-int __res; \
-__asm__ __volatile__ ("cld\n" \
-	"1:\tlodsl\n\t" \
-	"notl %%eax\n\t" \
-	"bsfl %%eax,%%edx\n\t" \
-	"je 2f\n\t" \
-	"addl %%edx,%%ecx\n\t" \
-	"jmp 3f\n" \
-	"2:\taddl $32,%%ecx\n\t" \
-	"cmpl $8192,%%ecx\n\t" \
-	"jl 1b\n" \
-	"3:" \
-	:"=c" (__res):"c" (0),"S" (addr)); \
-__res;})
+#define find_first_zero(addr) \
+    ({ \
+        int __res; \
+        __asm__ __volatile__("cld\n" \
+                             "1:\tlodsl\n\t" \
+                             "notl %%eax\n\t" \
+                             "bsfl %%eax,%%edx\n\t" \
+                             "je 2f\n\t" \
+                             "addl %%edx,%%ecx\n\t" \
+                             "jmp 3f\n" \
+                             "2:\taddl $32,%%ecx\n\t" \
+                             "cmpl $8192,%%ecx\n\t" \
+                             "jl 1b\n" \
+                             "3:" \
+                             : \
+                             "=c" (__res) \
+                             : \
+                             "c" (0), \
+                             "S" (addr) \
+                            ); \
+        __res; \
+    })
 
 void free_block(int dev, int block)
 {
@@ -76,21 +83,20 @@ int new_block(int dev)
 {
     struct super_block* sb = get_super(dev);
     if (!sb) panic("trying to get new block from nonexistant device");
-    //////////////////////////////////////////////////////////////////////////
-
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     int i;
     int j = 8192;
     struct buffer_head* bh;
     //////////////////////////////////////////////////////////////////////////
-    // find the nr of the first emtpy zone
-    for (i = 0; i < sb->s_zmap_blocks ; ++i) {
+    //////////////////////////////////////////////////////////////////////////
+        for (i = 0; i < sb->s_zmap_blocks; ++i) {
         bh = sb->s_zmap[i];
         if (bh && (j = find_first_zero(bh->b_data)) < BLCK_BITS) break;
-    }
-    //////////////////////////////////////////////////////////////////////////
+    }   // find the nr of the first emtpy zone
+    /***************************************************************/
+    // the 0 zone is not used and preset to 1
     if (i >= sb->s_zmap_blocks || !bh || j >= BLCK_BITS) return 0;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     if (set_bit(j,bh->b_data))
         panic("new_block: bit already set");
     bh->b_dirt = 1;

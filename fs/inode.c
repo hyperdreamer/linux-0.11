@@ -41,29 +41,27 @@ static inline void unlock_inode(struct m_inode* inode)
 static void read_inode(struct m_inode* inode)
 {
     lock_inode(inode);
+    //////////////////////////////////////////////////////////////////////////
     struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to read inode without dev");
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
-                + (inode->i_num-1)/INODES_PER_BLOCK;
-    //////////////////////////////////////////////////////////////////////////
-    // unlike, writ_inode(), we have to use bread() to do real bread from
-    // hard disks
+                + (inode->i_num - 1)/INODES_PER_BLOCK;
+    /***************************************************************/
     struct buffer_head* bh = bread(inode->i_dev, block);
     if (!bh) panic("read_inode(): unable to read i-node block");
     //////////////////////////////////////////////////////////////////////////
     *(struct d_inode *)inode =
         ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK];
-    //////////////////////////////////////////////////////////////////////////
     brelse(bh); // The reading procedure doesn't occupy the inode.
+    //////////////////////////////////////////////////////////////////////////
     unlock_inode(inode);
 }
 
 static void write_inode(struct m_inode* inode)
 {
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
     lock_inode(inode);
+    /***************************************************************/
     if (!inode->i_dirt || !inode->i_dev) {
         unlock_inode(inode);
         return;
@@ -72,33 +70,31 @@ static void write_inode(struct m_inode* inode)
     // modified by Henry
     struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to write inode without device");
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
                 + (inode->i_num-1)/INODES_PER_BLOCK;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     struct buffer_head* bh = bread(inode->i_dev, block);
     if (!bh) panic("write_inode(): unable to find i-node!");
     //////////////////////////////////////////////////////////////////////////
     ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK] =
         *(struct d_inode *)inode;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     bh->b_dirt = 1;
     inode->i_dirt = 0;
-    //////////////////////////////////////////////////////////////////////////
     brelse(bh); // have to release it after write 
     //////////////////////////////////////////////////////////////////////////
     unlock_inode(inode);
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
 }
 
 static int _bmap(struct m_inode* inode, int block, int create)
 {
-    struct buffer_head * bh;
+    struct buffer_head* bh;
     int i;
-
+    /***************************************************************/
     if (block < 0) panic("_bmap: block < 0");
     if (block >= 7+512+512*512) panic("_bmap: block>big");
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     if (block < 7) {
         if (create && !inode->i_zone[block])
@@ -110,9 +106,9 @@ static int _bmap(struct m_inode* inode, int block, int create)
     }
     //////////////////////////////////////////////////////////////////////////
     block -= 7;
-    if (block<512) {
+    if (block < 512) {
         if (create && !inode->i_zone[7])
-            if ((inode->i_zone[7]=new_block(inode->i_dev))) {
+            if ((inode->i_zone[7] = new_block(inode->i_dev))) {
                 inode->i_dirt=1;
                 inode->i_ctime=CURRENT_TIME;
             }
@@ -129,6 +125,7 @@ static int _bmap(struct m_inode* inode, int block, int create)
         brelse(bh);
         return i;
     }
+    /***************************************************************/
     block -= 512;
     if (create && !inode->i_zone[8])
         if ((inode->i_zone[8]=new_block(inode->i_dev))) {
@@ -174,9 +171,9 @@ static inline struct m_inode* find_inode_directly(int dev, int nr)
     return NULL;
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
+/*
+ **************************** INTERFACE **************************************
+ */
 
 struct m_inode* get_empty_inode(void)
 {
@@ -309,60 +306,59 @@ repeat:
 struct m_inode* iget(int dev, int nr)
 {
     if (!dev) panic("iget with dev==0");
-    //////////////////////////////////////////////////////////////////////////
     struct m_inode* empty = get_empty_inode();
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
 repeat:
     struct m_inode* inode = inode_table;
+    /***************************************************************/
+    /***************************************************************/
     while (inode < NR_INODE + inode_table) {
-        //////////////////////////////////////////////////////////////////////
         if (inode->i_dev != dev || inode->i_num != nr) {
             ++inode;
             continue;
         }
-        //////////////////////////////////////////////////////////////////////
-        ++inode->i_count;   // make sure that it won't be released
+        /***************************************************************/
+        inode->i_count++;   // make sure that it won't be released
+        /***************************************************************/
         wait_on_inode(inode);
         if (inode->i_dev != dev || inode->i_num != nr) {
-            --inode->i_count;
+            inode->i_count--;
             inode = inode_table;
             continue;
         }
-        //////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         // Finally we have inode->idev == dev && inode->inum == nr
         register int i;
         if (inode->i_mount) {
             for (i = 0; ; ++i) {
                 if (i == NR_SUPER) {
                     printk("iget(): Mounted inode hasn't got sb!\n");
-                    //////////////////////////////////////////////////////////
 #ifdef DEBUG
                     if(!empty) {
                         printkc("iget: get_empty_inode() mustn't be NULL!\n");
                         panic("iget: get_empty_inode() mustn't be NULL!");
                     }
 #endif
-                    //////////////////////////////////////////////////////////
                     //iput(empty);
                     empty->i_count = 0;
                     return inode;
                 }
+                /*****************************************************/
                 if (super_block[i].s_imount == inode) break;
             }
-            //////////////////////////////////////////////////////////////////
+            /***************************************************************/
             dev = super_block[i].s_dev;
             nr = ROOT_INO;
             inode = inode_table;
             continue;
         }
-        //////////////////////////////////////////////////////////////////////
 #ifdef DEBUG
         if(!empty) {
             printkc("iget: get_empty_inode() mustn't be NULL!\n");
             panic("iget: get_empty_inode() mustn't be NULL!");
         }
 #endif
-        //////////////////////////////////////////////////////////////////////
         //iput(empty);
         empty->i_count = 0;
         return inode;
@@ -384,6 +380,7 @@ repeat:
     inode->i_dev = dev;
     inode->i_num = nr;
     read_inode(inode);      // it will do sti() again
+    //////////////////////////////////////////////////////////////////////////
     return inode;
 }
 

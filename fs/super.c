@@ -88,11 +88,9 @@ repeat:
     lock_super(s);
     if (s->s_dev) { // it has been taken
         unlock_super(s);
-    //////////////////////////////////////////////////////////////////////////
 #ifdef DEBUG
         printkc("Go back to get_super_safely() again!\n");
 #endif
-    //////////////////////////////////////////////////////////////////////////
         goto repeat;
     }
     s->s_dev = dev;
@@ -110,7 +108,7 @@ repeat:
         unlock_super(s);
         return NULL;
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     *((struct d_super_block *) s) = *((struct d_super_block *) bh->b_data);
     brelse(bh);
     //////////////////////////////////////////////////////////////////////////
@@ -289,15 +287,16 @@ void mount_root(void)
 {
     register int i;
     extern void wait_for_keypress(void);
+    /***************************************************************/
+    if (32 != sizeof(struct d_inode)) panic("bad i-node size");
     //////////////////////////////////////////////////////////////////////////
-    if (32 != sizeof (struct d_inode)) panic("bad i-node size");
     //////////////////////////////////////////////////////////////////////////
     for(i = 0; i < NR_FILE; ++i) file_table[i].f_count=0;   // TO_READ
     if (MAJOR(ROOT_DEV) == 2) {
         printk("Insert root floppy and press ENTER");
         wait_for_keypress();        // TO_READ
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     /* already inintialized
     for(p = &super_block[0] ; p < &super_block[NR_SUPER] ; ++p) {
         p->s_dev = 0;
@@ -318,25 +317,29 @@ void mount_root(void)
     //////////////////////////////////////////////////////////////////////////
     struct super_block* p = read_super(ROOT_DEV);
     if (!p) panic("Unable to mount root");
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     struct m_inode* mi = iget(ROOT_DEV, ROOT_INO);
     if (!mi) panic("Unable to read root i-node");
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     mi->i_count += 3 ;	/* NOTE! it is logically used 4 times, not 1 */
     p->s_isup = p->s_imount = mi;   // +1
     current->pwd = mi;              // +1
     current->root = mi;             // +1
     //////////////////////////////////////////////////////////////////////////
+//#undef DEBUG
 #ifdef DEBUG
     int free = 0;
-    i = p->s_nzones;    // zone nr starts at 0
+    /***************************************************************/
+    /***************************************************************/
+    i = p->s_nzones + 1;    // zone 0 is used by the root of the fs
     while (--i >= 0)
         if (!bit_set(i & BLCK_MASK, p->s_zmap[ZMAP_INDX(i)]->b_data))
             ++free;
     printk("%d/%d free blocks\n\r", free, p->s_nzones);
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     free = 0;
-    i= p->s_ninodes + 1;    // i-node nr starts at 1
+    i= p->s_ninodes + 1;    // i-node 0 is preserved and is never used
     while (--i >= 0)
         if (!bit_set(i & BLCK_MASK, p->s_imap[IMAP_INDX(i)]->b_data))
             ++free;
