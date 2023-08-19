@@ -280,7 +280,7 @@ repeat:
     }
     //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
-    if (bh->b_count) {  // lock & check to ensure it is reliable
+    if (bh->b_count || bh->b_dirt) {  // lock & check to ensure it is reliable
 #ifdef DEBUG
         printkc("\ngetblk: The empty buffer block was taken "
                 "while sleeping!\n");
