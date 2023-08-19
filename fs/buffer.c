@@ -157,7 +157,7 @@ static inline struct buffer_head* find_free_buffer_directly()
         }
         /* and repeat until we find something good */
     } while ((tmp = tmp->b_next_free) != free_list);
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     return NULL;
 }
 
