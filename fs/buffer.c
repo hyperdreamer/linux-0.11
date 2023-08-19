@@ -261,7 +261,7 @@ repeat:
      * if the block is not in the buffer, you have to find a free 
      * buffer block to read into.
      */
-    bh = find_free_buffer_directly();    // not reliable
+    bh = find_free_buffer_directly();    // unreliable
     /***************************************************************/
     // if no free buffer exists, have to wait for one.
     if (!bh) {
