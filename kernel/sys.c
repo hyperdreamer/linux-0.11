@@ -14,6 +14,15 @@
 #include <sys/utsname.h>
 #include <sys/types.h>
 
+int do_bad_syscall(int syscall_nr)
+{
+#ifdef DEBUG
+    printk("Bad syscall nr: %d\n", syscall_nr);
+    printkc("Bad syscall nr: %d\n", syscall_nr);
+#endif
+    return -EPERM;
+}
+
 int sys_ftime()
 {
 	return -ENOSYS;
@@ -288,17 +297,28 @@ int sys_select()
     return -ENOSYS;
 }
 
+int sys_readlink(const char* path, char* buf, int bufsiz)
+{
+    return -ENOSYS;
+}
+
 int sys_uselib()
 {
     return -ENOSYS;
 }
 
-int do_bad_syscall(int syscall_nr)
+int sys_swapon()
 {
-#ifdef DEBUG
-    printk("Bad syscall nr: %d\n", syscall_nr);
-    printkc("Bad syscall nr: %d\n", syscall_nr);
-#endif
-    return -EPERM;
+    return -ENOSYS;
+}
+
+int sys_reboot()
+{
+    return -ENOSYS;
+}
+
+int sys_readdir()
+{
+    return -ENOSYS;
 }
 

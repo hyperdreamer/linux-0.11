@@ -122,7 +122,7 @@
 #define __NR_dup2	63
 #define __NR_getppid	64
 #define __NR_getpgrp	65
-#define __NR_setsid	66
+#define __NR_setsid	    66
 #define __NR_sigaction	67
 #define __NR_sgetmask	68
 #define __NR_ssetmask	69
@@ -131,19 +131,22 @@
 
 #define __NR_sigsuspend	72
 #define __NR_sigpending 73
-#define __NR_sethostname 74
+#define __NR_sethostname    74
 #define __NR_setrlimit	75
 #define __NR_getrlimit	76
 #define __NR_getrusage	77
-#define __NR_gettimeofday 78
-#define __NR_settimeofday 79
+#define __NR_gettimeofday   78
+#define __NR_settimeofday   79
 #define __NR_getgroups	80
 #define __NR_setgroups	81
-#define __NR_select	82
+#define __NR_select	    82
 #define __NR_symlink	83
-#define __NR_lstat	84
+#define __NR_lstat	    84
 #define __NR_readlink	85
-#define __NR_uselib	86
+#define __NR_uselib	    86
+#define __NR_swapon	    87
+#define __NR_reboot	    88
+#define __NR_readdir	89
 
 // no arguement
 #define _syscall0(type, name) \

@@ -44,8 +44,6 @@ sa_mask = 4
 sa_flags = 8
 sa_restorer = 12
 
-nr_system_calls = 87
-
 /*
  * Ok, I get parallel printer interrupts while using the floppy for some
  * strange reason. Urgel. Now I just ignore them.
@@ -55,6 +53,7 @@ nr_system_calls = 87
 .globl system_call, sys_fork, timer_interrupt, sys_execve
 .globl hd_interrupt, floppy_interrupt, parallel_interrupt
 .globl device_not_available, coprocessor_error, do_bad_syscall
+.global NR_syscalls
 
 #.align 2
 .p2align 2
@@ -88,7 +87,9 @@ system_call:
 	movw %dx, %es
 	movl $0x17, %edx    # %fs = %0x17: ldt[2]		
 	movw %dx, %fs        
-	cmpl $nr_system_calls-1, %eax
+    movl NR_syscalls, %edx
+    decl %edx
+	cmpl %edx, %eax
 	ja bad_sys_call
 	call sys_call_table(, %eax, 4)
 	pushl %eax          # return value of system call
