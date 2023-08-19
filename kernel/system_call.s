@@ -66,7 +66,7 @@ bad_sys_call:
 	cmpl $0, state(%eax)	# is the current process runnable?
 	jne reschedule          # if not, then reschedule
 	cmpl $0, counter(%eax)	# counter
-    # then go to reschedule
+    jne ret_from_sys_call
 
 #.align 2
 .p2align 2
