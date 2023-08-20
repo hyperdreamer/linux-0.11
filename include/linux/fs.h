@@ -39,7 +39,7 @@ void buffer_init(laddr_t buffer_end);
 #define SUPER_MAGIC 0x137F
 
 #define NR_OPEN 20
-#define NR_INODE 32
+#define NR_INODE 64
 #define NR_FILE 64
 #define NR_SUPER 8
 #define NR_HASH 307
