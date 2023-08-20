@@ -178,9 +178,8 @@ static struct buffer_head* find_entry(struct m_inode** dir,
 #endif
     //////////////////////////////////////////////////////////////////////////
     *res_dir = NULL;
-    //////////////////////////////////////////////////////////////////////////
     if (!namelen) return NULL;  // check the weird case in get_dir_i
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     /* check for '..', as we might have to do some "magic" for it */
     if (namelen==2 && get_fs_byte(name)=='.' && get_fs_byte(name+1)=='.') {
         /* '..' in a pseudo-root results in a faked '.' (just change namelen) */
@@ -205,7 +204,7 @@ static struct buffer_head* find_entry(struct m_inode** dir,
     int block = (*dir)->i_zone[0];
     if (!block) return NULL;
     /***************************************************************/
-    struct buffer_head * bh = bread((*dir)->i_dev, block);
+    struct buffer_head* bh = bread((*dir)->i_dev, block);
     if (!bh) return NULL;
     /***************************************************************/
     int i = 0;
@@ -390,13 +389,6 @@ static int empty_dir(struct m_inode * inode)
  */
 struct m_inode* namei(const char* pathname)
 {
-    const char* basename;
-    int base_len;
-    struct m_inode* dir;
-    struct buffer_head* bh;
-    struct dir_entry* de;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
 #undef DEBUG
 #ifdef DEBUG
     char buf[BLOCK_SIZE];
@@ -405,9 +397,16 @@ struct m_inode* namei(const char* pathname)
     char c;
     while ((c = get_fs_byte(copypath++)))
         *(pbuf++) = c; 
-    *(pbuf++) = c;  // '\0'
+    *pbuf = c;  // '\0'
     printkc("namei(%s)\n", buf);
 #endif
+    //////////////////////////////////////////////////////////////////////////
+    const char* basename;
+    int base_len;
+    struct m_inode* dir;
+    struct buffer_head* bh;
+    struct dir_entry* de;
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     dir = dir_namei(pathname, &base_len, &basename);
     if (!dir) return NULL;

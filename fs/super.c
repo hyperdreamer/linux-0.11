@@ -176,7 +176,7 @@ struct super_block* get_super(int dev)
         if (s->s_dev == dev) {
             wait_on_super(s);
             if (s->s_dev == dev) return s;
-            //////////////////////////////////////////////////////////////////
+            /***************************************************************/
             s = &super_block[0];
             continue;
         } 			
@@ -188,49 +188,46 @@ struct super_block* get_super(int dev)
 
 void put_super(int dev)
 {
-    struct super_block* sb;
-    register int i;
-    //////////////////////////////////////////////////////////////////////////
     if (dev == ROOT_DEV) {
         printk("root diskette changed: prepare for armageddon\n\r");
         return;
     }
     //////////////////////////////////////////////////////////////////////////
-    sb = get_super(dev);
+    struct super_block* sb = get_super(dev);
     if (!sb) return;
+    /***************************************************************/
     if (sb->s_imount) {
         printk("Mounted disk changed - tssk, tssk\n\r");
         return;
     }
     //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
     lock_super(sb);
     sb->s_dev = 0;
+    register int i;
     for(i = 0; i < sb->s_imap_blocks; ++i) brelse(sb->s_imap[i]);
     for(i = 0; i < sb->s_zmap_blocks; ++i) brelse(sb->s_zmap[i]);
     unlock_super(sb);
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     return;
 }
 
 int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 {
-	int dev;
-	struct m_inode* dev_i = namei(dev_name);
+	struct m_inode* dev_i = namei(dev_name);    // increment i_count
     /***************************************************************/
 	if (!dev_i) return -ENOENT;
     /***************************************************************/
-	dev = dev_i->i_zone[0];
 	if (!S_ISBLK(dev_i->i_mode)) {
-		iput(dev_i);
+		iput(dev_i);        // decrement i_count
 		return -EPERM;
 	}
-	iput(dev_i);
     //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-    struct m_inode* dir_i = namei(dir_name);
+    int dev = dev_i->i_zone[0];
+	iput(dev_i);            // decrement i_count
     /***************************************************************/
+    struct m_inode* dir_i = namei(dir_name);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 	if (!dir_i) return -ENOENT;
     /***************************************************************/
 	if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
@@ -243,8 +240,8 @@ int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 		return -EPERM;
 	}
     //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
 	struct super_block* sb = read_super(dev);
+    /***************************************************************/
     /***************************************************************/
 	if (!sb) {
 		iput(dir_i);
@@ -261,37 +258,39 @@ int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 		return -EPERM;
 	}
     /***************************************************************/
-	sb->s_imount=dir_i;
-	dir_i->i_mount=1;
-	dir_i->i_dirt=1;		/* NOTE! we don't iput(dir_i) */
+	sb->s_imount = dir_i;
+	dir_i->i_mount = 1;
+	dir_i->i_dirt = 1;		/* NOTE! we don't iput(dir_i) */
     /***************************************************************/
-	return 0;			/* we do that in umount */
+	return 0;			    /* we do that in umount */
 }
 
-int sys_umount(char * dev_name)
+int sys_umount(char* dev_name)
 {
-	struct m_inode * inode;
-	struct super_block * sb;
-	int dev;
-
-	if (!(inode=namei(dev_name)))
-		return -ENOENT;
-	dev = inode->i_zone[0];
+	struct m_inode* inode = namei(dev_name);
+    /***************************************************************/
+	if (!inode) return -ENOENT;
+    /***************************************************************/
 	if (!S_ISBLK(inode->i_mode)) {
 		iput(inode);
 		return -ENOTBLK;
 	}
+    //////////////////////////////////////////////////////////////////////////
+	int dev = inode->i_zone[0];
 	iput(inode);
-	if (dev==ROOT_DEV)
-		return -EBUSY;
-	if (!(sb=get_super(dev)) || !(sb->s_imount))
-		return -ENOENT;
-	if (!sb->s_imount->i_mount)
-		printk("Mounted inode has i_mount=0\n");
-	for (inode=inode_table+0 ; inode<inode_table+NR_INODE ; inode++)
-		if (inode->i_dev==dev && inode->i_count)
-				return -EBUSY;
-	sb->s_imount->i_mount=0;
+    /***************************************************************/
+	if (dev == ROOT_DEV) return -EBUSY;
+    /***************************************************************/
+	struct super_block* sb = get_super(dev);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+	if (!sb || !(sb->s_imount)) return -ENOENT;
+	if (! sb->s_imount->i_mount) printk("Mounted inode has i_mount=0\n");
+    /***************************************************************/
+	for (inode = inode_table; inode < inode_table+NR_INODE; ++inode)
+		if (inode->i_dev == dev && inode->i_count) return -EBUSY;
+    /***************************************************************/
+	sb->s_imount->i_mount = 0;
 	iput(sb->s_imount);
 	sb->s_imount = NULL;
 	iput(sb->s_isup);

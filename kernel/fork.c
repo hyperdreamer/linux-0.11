@@ -135,9 +135,9 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
         if (f) ++(f->f_count);
     }
     //////////////////////////////////////////////////////////////////////////
-	if (current->pwd) ++(current->pwd->i_count);
-	if (current->root) ++(current->root->i_count);
-	if (current->executable) ++(current->executable->i_count);
+	if (current->pwd) current->pwd->i_count++;
+	if (current->root) current->root->i_count++;
+	if (current->executable) current->executable->i_count++;
     //////////////////////////////////////////////////////////////////////////
 	set_tss_desc(nr, &(p->tss));
 	set_ldt_desc(nr, &(p->ldt));

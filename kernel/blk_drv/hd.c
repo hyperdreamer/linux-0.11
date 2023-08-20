@@ -86,7 +86,7 @@ extern void hd_interrupt(void);
 extern void rd_load(void);
 
 /* This may be used only once, enforced by 'static int callable' */
-int sys_setup(void * BIOS)
+int sys_setup(void* BIOS)
 {
     static int callable = 1;
     

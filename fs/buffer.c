@@ -171,9 +171,9 @@ static inline struct buffer_head* find_free_buffer_directly()
              "D" (to) \
             )
 
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
+/*
+ **************************** INTERFACE **************************************
+ */
 
 void buffer_init(laddr_t buffer_end)
 {
@@ -230,14 +230,14 @@ struct buffer_head* get_hash_table(int dev, int block)
         //////////////////////////////////////////////////////////////////////
         // make sure the return value is reliable, since it cannot be freed
         // anymore
-        ++bh->b_count;
+        bh->b_count++;
         //////////////////////////////////////////////////////////////////////
         wait_on_buffer(bh);
         if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
         // even the bh is valid after wait, the result is still
         // unreliable, since an interrupt might happen
         //////////////////////////////////////////////////////////////////////
-        --bh->b_count;  // make sure it can be freed again
+        bh->b_count--;  // make sure it can be freed again
     }
 }
 
