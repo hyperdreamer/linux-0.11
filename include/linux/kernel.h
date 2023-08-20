@@ -23,8 +23,6 @@ void free_s(void* obj, int size);
 
 ////////////////////////////////////////////////////////////
 // a debugger switcher. Urgely but it works! by Henry :-)
-#define DEBUG
-
 #ifdef DEBUG
 int printkc(const char* fmt, ...); 
 // bochs's magic break

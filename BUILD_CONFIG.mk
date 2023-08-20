@@ -13,4 +13,4 @@ AR		:= ar
 # Aditional
 
 ASFLAGS	+= -g
-CFLAGS 	+= $(ASFLAGS)
+CFLAGS 	+= $(ASFLAGS) -DDEBUG=1
