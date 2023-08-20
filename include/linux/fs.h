@@ -134,8 +134,9 @@ struct super_block {
     unsigned short s_imap_blocks;   // total nr of blocks for i-node bitmap
     unsigned short s_zmap_blocks;   // total nr of blocks for zone bitmap
     //////////////////////////////////////////////////////////////////////////
-    // the zone nr starts at 1: Check the debugging info of read_super()
-    unsigned short s_firstdatazone; // zone nr of the 1st data zone 
+    // data_zone[0] is used by the root directory of the filesystem
+    // Check the debugging info of read_super()
+    unsigned short s_firstdatazone; // zone nr of data_zone [1]
     //////////////////////////////////////////////////////////////////////////
     unsigned short s_log_zone_size; // log_2(blocks / zone)
     unsigned long s_max_size;       // max file size

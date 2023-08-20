@@ -150,14 +150,13 @@ repeat:
     s->s_zmap[0]->b_data[0] |= 1;   // make sure zone 0 is used by the root
     unlock_super(s);
     /***************************************************************/
-#undef DEBUG
 #ifdef DEBUG
     printkc("\nDev: %#x, IMAP blocks: %d, ZMAP blocks: %d, "
-            "Number of the 1st data zone: %d\n",
+            "The zone nr of data_zone[1]: %d\n",
             s->s_dev, s->s_imap_blocks, s->s_zmap_blocks,
             s->s_firstdatazone);
     /***************************************************************/
-    printkc("\nIndex of the 1st data zone by Calculation: %d\n\n",
+    printkc("\nThe zone nr of data_zone[0] by Calculation: %d\n\n",
             2 + s->s_imap_blocks + s->s_zmap_blocks +
             s->s_ninodes / INODES_PER_BLOCK);
 #endif

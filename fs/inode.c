@@ -223,7 +223,7 @@ repeat:
         goto repeat;
     }
     // we can do this safely, because interrupts are disabled!!!
-    memset(inode, 0, sizeof(struct m_inode));
+    memset(inode, 0, sizeof(*inode));
     inode->i_count = 1;     // mark it as used ahead
     unlock_inode(inode);
     //////////////////////////////////////////////////////////////////////////

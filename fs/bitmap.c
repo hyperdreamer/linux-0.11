@@ -36,11 +36,11 @@
         res; \
     })
 
-#define reset_bit(nr, addr) \
-    ({ \
+#define clear_bit(nr, addr) \
+    ({\
         int res; \
         __asm__ __volatile__("btrl %2, %3\n\t" \
-                             "setb %%al\n\t" \
+                             "setnb %%al\n\t" \
                              : \
                              "=a" (res) \
                              : \
@@ -50,12 +50,6 @@
                             ); \
         res; \
     })
-
-#define clear_bit(nr,addr) ({\
-register int res ; \
-__asm__ __volatile__("btrl %2,%3\n\tsetnb %%al": \
-"=a" (res):"0" (0),"r" (nr),"m" (*(addr))); \
-res;})
 
 #define find_first_zero(addr) \
     ({ \
@@ -152,24 +146,20 @@ repeat:
     /***************************************************************/
     // getblk() here acutually finds a empty buffer block
     bh = getblk(dev, j);
-#ifdef DEBUG
     if (!bh || bh->b_count != 1) {
         printkc("new_block: Somthing wrong with the getblk!\n"
-                "Before panic, we have to reset the zone bitmap bit.\n"
-                "Otherwise a free disk zone will be wasted!\n"
-                "You know panic will do sys_sync(), right?\n");
+                "Before panic, we'd better reset the zone bitmap bit.\n"
+                "Otherwise it will cause a filesystem inconsistency!\n")
         /******************************************************/
         struct buffer_head* tmp = sb->s_zmap[i];
         j -= i * BLCK_BITS + sb->s_firstdatazone - 1;
         /******************************************************/
-        lock_buffer(tmp);
-        if (!reset_bit(j, tmp->b_data)) 
-            printkc("new_block: Something werid happened!\n");
+        if (clear_bit(j, tmp->b_data)) 
+            printkc("new_block: Something weird happened!\n");
         /******************************************************/
         if (!bh) panic("new_block: cannot get block");
         if (bh->b_count != 1) panic("new block: count is != 1");
     }
-#endif
     /***************************************************************/
     clear_block(bh->b_data);
     bh->b_uptodate = 1;
@@ -180,30 +170,32 @@ repeat:
 
 void free_block(int dev, int block)
 {
-    struct super_block * sb;
-    struct buffer_head * bh;
-
-    if (!(sb = get_super(dev)))
-        panic("trying to free block on nonexistent device");
+    struct super_block* sb = get_super(dev);
+    struct buffer_head* bh;
+    /***************************************************************/
+    if (!sb) panic("trying to free block on nonexistent device");
     if (block < sb->s_firstdatazone || block >= sb->s_nzones)
         panic("trying to free block not in datazone");
-    bh = get_hash_table(dev,block);
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    bh = get_hash_table(dev, block);
     if (bh) {
         if (bh->b_count != 1) {
             printk("trying to free block (%04x:%d), count=%d\n",
-                   dev,block,bh->b_count);
+                   dev, block, bh->b_count);
             return;
         }
-        bh->b_dirt=0;
-        bh->b_uptodate=0;
+        bh->b_dirt = 0;
+        bh->b_uptodate = 0;
         brelse(bh);
     }
+    /***************************************************************/
     block -= sb->s_firstdatazone - 1 ;
-    if (clear_bit(block&8191,sb->s_zmap[block/8192]->b_data)) {
-        printk("block (%04x:%d) ",dev,block+sb->s_firstdatazone-1);
+    if (clear_bit(block & BLCK_MASK, sb->s_zmap[block/BLCK_BITS]->b_data)) {
+        printk("block (%04x:%d) ", dev, block + sb->s_firstdatazone - 1);
         panic("free_block: bit already cleared");
     }
-    sb->s_zmap[block/8192]->b_dirt = 1;
+    sb->s_zmap[block/BLCK_BITS]->b_dirt = 1;
 }
 
 void free_inode(struct m_inode * inode)
