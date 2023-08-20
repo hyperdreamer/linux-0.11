@@ -9,18 +9,47 @@
 
 #include <linux/sched.h>
 #include <linux/kernel.h>
+#include <asm/system.h>
 
 #define clear_block(addr) \
-__asm__ __volatile__ ("cld\n\t" \
-	"rep\n\t" \
-	"stosl" \
-	::"a" (0),"c" (BLOCK_SIZE/4),"D" ((long) (addr)))
+    __asm__ __volatile__("cld\n\t" \
+                         "rep stosl\n\t" \
+                         : \
+                         : \
+                         "a" (0), \
+                         "c" (BLOCK_SIZE/4), \
+                         "D" ((long) (addr)) \
+                        )
 
-#define set_bit(nr,addr) ({\
-register int res ; \
-__asm__ __volatile__("btsl %2,%3\n\tsetb %%al": \
-"=a" (res):"0" (0),"r" (nr),"m" (*(addr))); \
-res;})
+#define set_bit(nr, addr) \
+    ({ \
+        int res; \
+        __asm__ __volatile__("btsl %2, %3\n\t" \
+                             "setb %%al\n\t" \
+                             : \
+                             "=a" (res) \
+                             : \
+                             "0" (0), \
+                             "r" (nr), \
+                             "m" (*(addr)) \
+                            ); \
+        res; \
+    })
+
+#define reset_bit(nr, addr) \
+    ({ \
+        int res; \
+        __asm__ __volatile__("btrl %2, %3\n\t" \
+                             "setb %%al\n\t" \
+                             : \
+                             "=a" (res) \
+                             : \
+                             "0" (0), \
+                             "r" (nr), \
+                             "m" (*(addr)) \
+                            ); \
+        res; \
+    })
 
 #define clear_bit(nr,addr) ({\
 register int res ; \
@@ -32,16 +61,18 @@ res;})
     ({ \
         int __res; \
         __asm__ __volatile__("cld\n" \
-                             "1:\tlodsl\n\t" \
+                             "1:\n\t" \
+                             "lodsl\n\t" \
                              "notl %%eax\n\t" \
-                             "bsfl %%eax,%%edx\n\t" \
+                             "bsfl %%eax, %%edx\n\t" \
                              "je 2f\n\t" \
-                             "addl %%edx,%%ecx\n\t" \
+                             "addl %%edx, %%ecx\n\t" \
                              "jmp 3f\n" \
-                             "2:\taddl $32,%%ecx\n\t" \
-                             "cmpl $8192,%%ecx\n\t" \
+                             "2:\n\t" \
+                             "addl $32, %%ecx\n\t" \
+                             "cmpl $8192, %%ecx\n\t" \
                              "jl 1b\n" \
-                             "3:" \
+                             "3:\n\t" \
                              : \
                              "=c" (__res) \
                              : \
@@ -50,6 +81,102 @@ res;})
                             ); \
         __res; \
     })
+
+static inline void lock_buffer(struct buffer_head* bh)
+{
+	cli();
+	while (bh->b_lock) sleep_on(&bh->b_wait);
+	bh->b_lock = 1;
+	sti();
+}
+
+static inline void unlock_buffer(struct buffer_head* bh)
+{
+	if (!bh->b_lock) printk("buffer.c: buffer not locked\n");
+    //////////////////////////////////////////////////////////////////////////
+	cli();
+	bh->b_lock = 0;
+	wake_up(&bh->b_wait);
+    sti();
+}
+
+int new_block(int dev)
+{
+    struct super_block* sb = get_super(dev);
+    if (!sb) panic("trying to get new block from nonexistant device");
+    /***************************************************************/
+    struct buffer_head* bh;
+    int i;
+    int j;
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+repeat:
+    for (i = 0; i < sb->s_zmap_blocks; ++i) {
+        bh = sb->s_zmap[i];
+#ifdef DEBUG
+        if (!bh) {
+            printkc("new_block: Dev %#x: Filesystem is corrupted!\n", 
+                    sb->s_dev);
+            panic("new_block: Filesystem is corrupted!");
+        }
+#endif
+        j = find_first_zero(bh->b_data);        // TO_READ
+        if (j < BLCK_BITS) break;
+        /*******************************************************/
+    }   // find the nr of the first emtpy zone
+    /***************************************************************/
+#ifdef DEBUG
+    if (j >= BLCK_BITS) {
+        printkc("new_block: Something wrong with the bitmap searching!\n");
+        panic("new_block: Something wrong with the bitmap searching!");
+    }
+#endif
+    // the 0 zone is the boot block. If you get it, the disk is full.
+    if (i == sb->s_zmap_blocks) return 0;
+    //////////////////////////////////////////////////////////////////////////
+    lock_buffer(bh);
+    if (set_bit(j, bh->b_data)) {
+#ifdef DEBUG
+        printkc("new_block: the empty zone was taken, while sleeping\n");
+#endif
+        unlock_buffer(bh);
+        goto repeat;
+    }
+    /***************************************************************/
+    bh->b_dirt = 1;
+    // why -1 ? Check the debugging info in read_super()
+    j += i * BLCK_BITS + sb->s_firstdatazone - 1;
+    unlock_buffer(bh);
+    /***************************************************************/
+    if (j >= sb->s_nzones) return 0;    // crutical!!!
+    /***************************************************************/
+    // getblk() here acutually finds a empty buffer block
+    bh = getblk(dev, j);
+#ifdef DEBUG
+    if (!bh || bh->b_count != 1) {
+        printkc("new_block: Somthing wrong with the getblk!\n"
+                "Before panic, we have to reset the zone bitmap bit.\n"
+                "Otherwise a free disk zone will be wasted!\n"
+                "You know panic will do sys_sync(), right?\n");
+        /******************************************************/
+        struct buffer_head* tmp = sb->s_zmap[i];
+        j -= i * BLCK_BITS + sb->s_firstdatazone - 1;
+        /******************************************************/
+        lock_buffer(tmp);
+        if (!reset_bit(j, tmp->b_data)) 
+            printkc("new_block: Something werid happened!\n");
+        /******************************************************/
+        if (!bh) panic("new_block: cannot get block");
+        if (bh->b_count != 1) panic("new block: count is != 1");
+    }
+#endif
+    /***************************************************************/
+    clear_block(bh->b_data);
+    bh->b_uptodate = 1;
+    bh->b_dirt = 1;
+    brelse(bh);
+    return j;
+}
 
 void free_block(int dev, int block)
 {
@@ -77,41 +204,6 @@ void free_block(int dev, int block)
         panic("free_block: bit already cleared");
     }
     sb->s_zmap[block/8192]->b_dirt = 1;
-}
-
-int new_block(int dev)
-{
-    struct super_block* sb = get_super(dev);
-    if (!sb) panic("trying to get new block from nonexistant device");
-    /***************************************************************/
-    int i;
-    int j = 8192;
-    struct buffer_head* bh;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-        for (i = 0; i < sb->s_zmap_blocks; ++i) {
-        bh = sb->s_zmap[i];
-        if (bh && (j = find_first_zero(bh->b_data)) < BLCK_BITS) break;
-    }   // find the nr of the first emtpy zone
-    /***************************************************************/
-    // the 0 zone is not used and preset to 1
-    if (i >= sb->s_zmap_blocks || !bh || j >= BLCK_BITS) return 0;
-    /***************************************************************/
-    if (set_bit(j,bh->b_data))
-        panic("new_block: bit already set");
-    bh->b_dirt = 1;
-    j += i*8192 + sb->s_firstdatazone-1;
-    if (j >= sb->s_nzones)
-        return 0;
-    if (!(bh=getblk(dev,j)))
-        panic("new_block: cannot get block");
-    if (bh->b_count != 1)
-        panic("new block: count is != 1");
-    clear_block(bh->b_data);
-    bh->b_uptodate = 1;
-    bh->b_dirt = 1;
-    brelse(bh);
-    return j;
 }
 
 void free_inode(struct m_inode * inode)
@@ -145,34 +237,36 @@ void free_inode(struct m_inode * inode)
 
 struct m_inode * new_inode(int dev)
 {
-	struct m_inode * inode;
-	struct super_block * sb;
-	struct buffer_head * bh;
-	int i,j;
+    struct m_inode * inode;
+    struct super_block * sb;
+    struct buffer_head * bh;
+    int i,j;
 
-	if (!(inode=get_empty_inode()))
-		return NULL;
-	if (!(sb = get_super(dev)))
-		panic("new_inode with unknown device");
-	j = 8192;
-	for (i=0 ; i<8 ; i++)
-		if ((bh=sb->s_imap[i]))
-			if ((j=find_first_zero(bh->b_data))<8192)
-				break;
-	if (!bh || j >= 8192 || j+i*8192 > sb->s_ninodes) {
-		iput(inode);
-		return NULL;
-	}
-	if (set_bit(j,bh->b_data))
-		panic("new_inode: bit already set");
-	bh->b_dirt = 1;
-	inode->i_count=1;
-	inode->i_nlinks=1;
-	inode->i_dev=dev;
-	inode->i_uid=current->euid;
-	inode->i_gid=current->egid;
-	inode->i_dirt=1;
-	inode->i_num = j + i*8192;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
-	return inode;
+    if (!(inode=get_empty_inode()))
+        return NULL;
+    if (!(sb = get_super(dev)))
+        panic("new_inode with unknown device");
+    j = 8192;
+    for (i=0 ; i<8 ; i++)
+        if ((bh=sb->s_imap[i]))
+            if ((j=find_first_zero(bh->b_data))<8192)
+                break;
+    if (!bh || j >= 8192 || j+i*8192 > sb->s_ninodes) {
+        iput(inode);
+        return NULL;
+    }
+    lock_buffer(bh);
+    if (set_bit(j,bh->b_data))
+        panic("new_inode: bit already set");
+    unlock_buffer(bh);
+    bh->b_dirt = 1;
+    inode->i_count=1;
+    inode->i_nlinks=1;
+    inode->i_dev=dev;
+    inode->i_uid=current->euid;
+    inode->i_gid=current->egid;
+    inode->i_dirt=1;
+    inode->i_num = j + i*8192;
+    inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
+    return inode;
 }
