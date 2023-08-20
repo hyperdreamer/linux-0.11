@@ -13,6 +13,7 @@
 
 extern struct super_block super_block[NR_SUPER];
 struct m_inode inode_table[NR_INODE]= {};
+static struct m_inode* inode_req_wait = NULL;
 
 static inline void wait_on_inode(struct m_inode* inode)
 {
@@ -180,28 +181,31 @@ struct m_inode* get_empty_inode(void)
     static struct m_inode* last_inode = inode_table;
     struct m_inode* inode;
     //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 repeat:
     do {
         inode = NULL;
         register int i;
-        //////////////////////////////////////////////////////////////////////
-        for (i = NR_INODE; i ; --i) {
+        /***************************************************************/
+        /***************************************************************/
+        for (i = 0; i < NR_INODE; ++i) {
             if (++last_inode >= inode_table + NR_INODE)
                 last_inode = inode_table;   // circular
-            //////////////////////////////////////////////////////////////////
+            /***************************************************************/
             if (!last_inode->i_count) {
                 inode = last_inode;
                 if (!inode->i_dirt && !inode->i_lock) break;
             }
         }
-        //////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         if (!inode) {
-            for (i = 0; i < NR_INODE; i++)
-                printk("%04x: %6d\t",inode_table[i].i_dev,
-                       inode_table[i].i_num);
-            panic("No free inodes in mem");
+#ifdef DEBUG
+            printkc("get_empty_inode: i-node in mem has been run out!\n");
+#endif
+            sleep_on(&inode_req_wait);
+            goto repeat;
         }
-        //////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         wait_on_inode(inode);
         while (inode->i_dirt) {
             write_inode(inode);
@@ -209,11 +213,9 @@ repeat:
         }
     } while (inode->i_count);
     //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
     // the result is unreliable have to add a lock
     lock_inode(inode);
-    if (inode->i_count) {
-//#undef DEBUG
+    if (inode->i_count || inode->i_dirt) {
 #ifdef DEBUG
         printkc("get_empty_inode():\n");
         printkc("\tThe empty candidate is taken while sleeping!\n");
@@ -258,20 +260,22 @@ void iput(struct m_inode* inode)
     if (!inode) return;
     //////////////////////////////////////////////////////////////////////////
     wait_on_inode(inode);
-    if (!inode->i_count) panic("iput: trying to free free inode");
+    if (! inode->i_count) panic("iput: trying to free free inode");
     //////////////////////////////////////////////////////////////////////////
     if (inode->i_pipe) {
         wake_up(&inode->i_wait);
-        if (--inode->i_count) return;
+        if (-- inode->i_count) return;
         free_page(inode->i_size);
         inode->i_dirt = 0;
         inode->i_pipe = 0;
         inode->i_count = 0; // do this at the end
+        wake_up(&inode_req_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
     if (!inode->i_dev) {    // the device is not valid anymore
-        --inode->i_count;
+        inode->i_count--;
+        wake_up(&inode_req_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -282,7 +286,8 @@ void iput(struct m_inode* inode)
     //////////////////////////////////////////////////////////////////////////
 repeat:
     if (inode->i_count > 1) {
-        --inode->i_count;
+        inode->i_count--;
+        wake_up(&inode_req_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -290,6 +295,7 @@ repeat:
         // it is safe to do truncate, since it is an orphan in the filesystem
         truncate(inode);        // TO_READ
         free_inode(inode);
+        wake_up(&inode_req_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -298,7 +304,8 @@ repeat:
         wait_on_inode(inode);
         goto repeat;
     }
-    --inode->i_count;
+    inode->i_count--;
+    wake_up(&inode_req_wait);
     return;
 }
 
@@ -306,71 +313,60 @@ repeat:
 struct m_inode* iget(int dev, int nr)
 {
     if (!dev) panic("iget with dev==0");
-    struct m_inode* empty = get_empty_inode();
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
 repeat:
     struct m_inode* inode = inode_table;
-    /***************************************************************/
-    /***************************************************************/
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
     while (inode < NR_INODE + inode_table) {
         if (inode->i_dev != dev || inode->i_num != nr) {
             ++inode;
             continue;
         }
         /***************************************************************/
-        inode->i_count++;   // make sure that it won't be released
+        inode->i_count++;   // make sure that it won't be released in mem
         /***************************************************************/
+        // Though we've try our best to make sure i-node won't be released,
+        // ship happens! so we have to check again
         wait_on_inode(inode);
         if (inode->i_dev != dev || inode->i_num != nr) {
+#ifdef DEBUG
+            printkc("iget(): the inode changed during sleep!\n");
+#endif
             inode->i_count--;
             inode = inode_table;
             continue;
         }
-        /***************************************************************/
+        ///////////////////////////////////////////////////////////////////////
         // Finally we have inode->idev == dev && inode->inum == nr
-        register int i;
         if (inode->i_mount) {
+            register int i;
             for (i = 0; ; ++i) {
                 if (i == NR_SUPER) {
                     printk("iget(): Mounted inode hasn't got sb!\n");
-#ifdef DEBUG
-                    if(!empty) {
-                        printkc("iget: get_empty_inode() mustn't be NULL!\n");
-                        panic("iget: get_empty_inode() mustn't be NULL!");
-                    }
-#endif
-                    //iput(empty);
-                    empty->i_count = 0;
+                    inode->i_mount = 0;
                     return inode;
                 }
                 /*****************************************************/
                 if (super_block[i].s_imount == inode) break;
             }
-            /***************************************************************/
+            /***********************************************************/
             dev = super_block[i].s_dev;
             nr = ROOT_INO;
             inode = inode_table;
             continue;
         }
-#ifdef DEBUG
-        if(!empty) {
-            printkc("iget: get_empty_inode() mustn't be NULL!\n");
-            panic("iget: get_empty_inode() mustn't be NULL!");
-        }
-#endif
-        //iput(empty);
-        empty->i_count = 0;
+        /***************************************************************/
         return inode;
     }
     //////////////////////////////////////////////////////////////////////////
+    struct m_inode* empty = get_empty_inode();
 #ifdef DEBUG
     if(!empty) {
         printkc("iget: get_empty_inode() mustn't be NULL!\n");
         panic("iget: get_empty_inode() mustn't be NULL!");
     }
 #endif
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     cli();  // it is essential to deny accessing!
     if (find_inode_directly(dev, nr)) {
         sti();
@@ -400,8 +396,8 @@ void invalidate_inodes(int dev)
     for(register int i = 0; i < NR_INODE; ++i, ++inode) {
         wait_on_inode(inode);
         if (inode->i_dev == dev) {
-            if (inode->i_count)
-                printk("inode in use on removed disk\n\r");
+            if (inode->i_count) printk("inode in use on removed disk\n");
+            /***************************************************************/
             inode->i_dev = inode->i_dirt = 0;
         }
     }
