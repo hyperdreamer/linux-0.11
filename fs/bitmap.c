@@ -100,8 +100,7 @@ int new_block(int dev)
     if (!sb) panic("trying to get new block from nonexistant device");
     /***************************************************************/
     struct buffer_head* bh;
-    int i;
-    int j;
+    int i, j;
     //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
 repeat:
@@ -109,14 +108,12 @@ repeat:
         bh = sb->s_zmap[i];
 #ifdef DEBUG
         if (!bh) {
-            printkc("new_block: Dev %#x: Filesystem is corrupted!\n", 
-                    sb->s_dev);
+            printkc("new_block: Dev %#x: Filesystem is corrupted!\n", dev);
             panic("new_block: Filesystem is corrupted!");
         }
 #endif
         j = find_first_zero(bh->b_data);        // TO_READ
         if (j < BLCK_BITS) break;
-        /*******************************************************/
     }   // find the nr of the first emtpy zone
     /***************************************************************/
 #ifdef DEBUG
@@ -149,7 +146,7 @@ repeat:
     if (!bh || bh->b_count != 1) {
         printkc("new_block: Somthing wrong with the getblk!\n"
                 "Before panic, we'd better reset the zone bitmap bit.\n"
-                "Otherwise it will cause a filesystem inconsistency!\n")
+                "Otherwise it will cause a filesystem inconsistency!\n");
         /******************************************************/
         struct buffer_head* tmp = sb->s_zmap[i];
         j -= i * BLCK_BITS + sb->s_firstdatazone - 1;
@@ -191,74 +188,112 @@ void free_block(int dev, int block)
     }
     /***************************************************************/
     block -= sb->s_firstdatazone - 1 ;
-    if (clear_bit(block & BLCK_MASK, sb->s_zmap[block/BLCK_BITS]->b_data)) {
+    /***************************************************************/
+    if (clear_bit(block & BLCK_MASK, sb->s_zmap[ZMAP_INDX(block)]->b_data)) {
         printk("block (%04x:%d) ", dev, block + sb->s_firstdatazone - 1);
         panic("free_block: bit already cleared");
     }
+    /***************************************************************/
     sb->s_zmap[block/BLCK_BITS]->b_dirt = 1;
 }
 
-void free_inode(struct m_inode * inode)
+void free_inode(struct m_inode* inode)
 {
-	struct super_block * sb;
-	struct buffer_head * bh;
-
-	if (!inode)
-		return;
+	if (!inode) return;
+    /***************************************************************/
+    int inr = inode->i_num;
+    if (inr < 1) panic("tring to free inode 0 or negative inodes");
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
 	if (!inode->i_dev) {
-		memset(inode,0,sizeof(*inode));
+		memset(inode, 0, sizeof(*inode));
 		return;
 	}
-	if (inode->i_count>1) {
+    /***************************************************************/
+	if (inode->i_count > 1) {
 		printk("trying to free inode with count=%d\n",inode->i_count);
 		panic("free_inode");
 	}
-	if (inode->i_nlinks)
-		panic("trying to free inode with links");
-	if (!(sb = get_super(inode->i_dev)))
-		panic("trying to free inode on nonexistent device");
-	if (inode->i_num < 1 || inode->i_num > sb->s_ninodes)
-		panic("trying to free inode 0 or nonexistant inode");
-	if (!(bh=sb->s_imap[inode->i_num>>13]))
-		panic("nonexistent imap in superblock");
-	if (clear_bit(inode->i_num&8191,bh->b_data))
+    /***************************************************************/
+	if (inode->i_nlinks) panic("trying to free inode with links");
+    //////////////////////////////////////////////////////////////////////////
+	struct super_block* sb = get_super(inode->i_dev);
+	if (!sb) panic("trying to free inode on nonexistent device");
+	if (inr > sb->s_ninodes) panic("trying to nonexistant inode");
+    /***************************************************************/
+    /***************************************************************/
+	struct buffer_head* bh = sb->s_imap[IMAP_INDX(inr)];
+	if (!bh) panic("nonexistent imap in superblock");
+    /***************************************************************/
+    /***************************************************************/
+	if (clear_bit(inr & BLCK_MASK, bh->b_data))
 		printk("free_inode: bit already cleared.\n\r");
+    /***************************************************************/
 	bh->b_dirt = 1;
-	memset(inode,0,sizeof(*inode));
+    /***************************************************************/
+	memset(inode, 0, sizeof(*inode));
 }
 
-struct m_inode * new_inode(int dev)
+struct m_inode* new_inode(int dev)
 {
-    struct m_inode * inode;
-    struct super_block * sb;
+    struct m_inode* inode = get_empty_inode();
+    if (!inode) return NULL;
+    /***************************************************************/
+    struct super_block* sb = get_super(dev);
+    if (!sb) panic("new_inode with unknown device");
+    /***************************************************************/
     struct buffer_head * bh;
-    int i,j;
-
-    if (!(inode=get_empty_inode()))
-        return NULL;
-    if (!(sb = get_super(dev)))
-        panic("new_inode with unknown device");
-    j = 8192;
-    for (i=0 ; i<8 ; i++)
-        if ((bh=sb->s_imap[i]))
-            if ((j=find_first_zero(bh->b_data))<8192)
-                break;
-    if (!bh || j >= 8192 || j+i*8192 > sb->s_ninodes) {
+    int i, j;
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+repeat:
+    for (i = 0; i < sb->s_imap_blocks; ++i) {
+        bh = sb->s_imap[i];
+#ifdef DEBUG
+        if (!bh) {
+            printkc("new_inode: Dev %#x: Filesystem is corrupted!\n", dev); 
+            panic("new_inode: Filesystem is corrupted!");
+        } 
+#endif
+        j = find_first_zero(bh->b_data);
+        if (j < BLCK_BITS) break;
+    }   // find the nr of the first emtpy inode
+    /***************************************************************/
+#ifdef DEBUG
+    if (j >= BLCK_BITS) {
+        printkc("new_inode: Something wrong with the bitmap searching!\n");
+        panic("new_inode: Something wrong with the bitmap searching!");
+    }
+#endif
+    if (i == sb->s_imap_blocks) {
         iput(inode);
         return NULL;
     }
+    //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
-    if (set_bit(j,bh->b_data))
-        panic("new_inode: bit already set");
-    unlock_buffer(bh);
+    if (set_bit(j, bh->b_data)) {
+#ifdef DEBUG
+        printkc("new_node: the empty inode was taken, while sleeping\n");
+#endif
+        unlock_buffer(bh);
+        goto repeat;
+    }
     bh->b_dirt = 1;
-    inode->i_count=1;
-    inode->i_nlinks=1;
-    inode->i_dev=dev;
-    inode->i_uid=current->euid;
-    inode->i_gid=current->egid;
-    inode->i_dirt=1;
-    inode->i_num = j + i*8192;
+    j += i * BLCK_BITS;
+    if (j > sb->s_ninodes) {
+        iput(inode);
+        return NULL;
+    }
+    unlock_buffer(bh);
+    /***************************************************************/
+    //inode->i_count = 1;   // already set by get_empty_inode()
+    inode->i_nlinks = 1;
+    inode->i_dev = dev;
+    inode->i_uid = current->euid;
+    inode->i_gid = current->egid;
+    inode->i_dirt = 1;
+    inode->i_num = j;
     inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
+    /***************************************************************/
     return inode;
 }

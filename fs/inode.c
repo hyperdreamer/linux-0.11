@@ -13,7 +13,7 @@
 
 extern struct super_block super_block[NR_SUPER];
 struct m_inode inode_table[NR_INODE]= {};
-static struct m_inode* inode_req_wait = NULL;
+static struct task_struct* inode_req_wait = NULL;
 
 static inline void wait_on_inode(struct m_inode* inode)
 {
@@ -220,7 +220,7 @@ repeat:
         printkc("get_empty_inode():\n");
         printkc("\tThe empty candidate is taken while sleeping!\n");
 #endif
-        //////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         unlock_inode(inode);
         goto repeat;
     }
@@ -229,15 +229,14 @@ repeat:
     inode->i_count = 1;     // mark it as used ahead
     unlock_inode(inode);
     //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
     return inode;
 }
 
 struct m_inode* get_pipe_inode(void)
 {
     struct m_inode* inode = get_empty_inode();
-    //////////////////////////////////////////////////////////////////////////
     if (!inode) return NULL;
+    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     if (!(inode->i_size = get_free_page())) {
 #ifdef DEBUG
