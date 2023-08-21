@@ -15,6 +15,8 @@
 #include <errno.h>
 #include <sys/stat.h>
 
+#include <asm/segment.h>
+
 /* bit_set uses setb, as gas doesn't recognize setc */
 #define bit_set(bitnr, addr) \
     ({ \
@@ -213,56 +215,69 @@ void put_super(int dev)
 
 int sys_mount(char* dev_name, char* dir_name, int rw_flag)
 {
-	struct m_inode* dev_i = namei(dev_name);    // increment i_count
+    struct m_inode* dev_i = namei(dev_name);    // increment i_count
     /***************************************************************/
-	if (!dev_i) return -ENOENT;
+    if (!dev_i) return -ENOENT;
     /***************************************************************/
-	if (!S_ISBLK(dev_i->i_mode)) {
-		iput(dev_i);        // decrement i_count
-		return -EPERM;
-	}
+    if (!S_ISBLK(dev_i->i_mode)) {
+        iput(dev_i);        // decrement i_count
+        return -EPERM;
+    }
     //////////////////////////////////////////////////////////////////////////
     int dev = dev_i->i_zone[0];
-	iput(dev_i);            // decrement i_count
+    iput(dev_i);            // decrement i_count
     /***************************************************************/
     struct m_inode* dir_i = namei(dir_name);
     //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
-	if (!dir_i) return -ENOENT;
+    if (!dir_i) return -ENOENT;
     /***************************************************************/
-	if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
-		iput(dir_i);
-		return -EBUSY;
-	}
+    if (dir_i->i_count != 1 || dir_i->i_num == ROOT_INO) {
+        iput(dir_i);
+#ifdef DEBUG
+        printkc("sys_mount: Busy 1\n");
+#endif
+        return -EBUSY;
+    }
     /***************************************************************/
-	if (!S_ISDIR(dir_i->i_mode)) {
-		iput(dir_i);
-		return -EPERM;
-	}
+    if (!S_ISDIR(dir_i->i_mode)) {
+        iput(dir_i);
+        return -EPERM;
+    }
     //////////////////////////////////////////////////////////////////////////
-	struct super_block* sb = read_super(dev);
+    struct super_block* sb = read_super(dev);
     /***************************************************************/
     /***************************************************************/
-	if (!sb) {
-		iput(dir_i);
-		return -EBUSY;
-	}
+    if (!sb) {
+        iput(dir_i);
+#ifdef DEBUG
+        printkc("sys_mount: Busy 2\n");
+#endif
+        return -EBUSY;
+    }
     /***************************************************************/
-	if (sb->s_imount) {
-		iput(dir_i);
-		return -EBUSY;
-	}
+    if (sb->s_imount) {
+        iput(dir_i);
+#ifdef DEBUG
+        printkc("sys_mount: Busy 3\n");
+#endif
+        return -EBUSY;
+    }
     /***************************************************************/
-	if (dir_i->i_mount) {
-		iput(dir_i);
-		return -EPERM;
-	}
+    if (dir_i->i_mount) {
+        iput(dir_i);
+        return -EPERM;
+    }
     /***************************************************************/
-	sb->s_imount = dir_i;
-	dir_i->i_mount = 1;
-	dir_i->i_dirt = 1;		/* NOTE! we don't iput(dir_i) */
+    dev_i = iget(dev, ROOT_INO);
+    sb->s_isup = dev_i;
+    sb->s_imount = dir_i;
+    dir_i->i_mount = 1;
+    dir_i->i_dirt = 1;		
     /***************************************************************/
-	return 0;			    /* we do that in umount */
+    // NOTE! we don't iput(dir_i) & input(dev_i), they are done by 
+    // sys_umount
+    return 0;			    
 }
 
 int sys_umount(char* dev_name)
@@ -271,24 +286,58 @@ int sys_umount(char* dev_name)
     /***************************************************************/
 	if (!inode) return -ENOENT;
     /***************************************************************/
-	if (!S_ISBLK(inode->i_mode)) {
+	if (!S_ISBLK(inode->i_mode) && !S_ISDIR(inode->i_mode)) {
 		iput(inode);
 		return -ENOTBLK;
 	}
     //////////////////////////////////////////////////////////////////////////
-	int dev = inode->i_zone[0];
-	iput(inode);
-    /***************************************************************/
-	if (dev == ROOT_DEV) return -EBUSY;
-    /***************************************************************/
-	struct super_block* sb = get_super(dev);
+    int dev;
+	struct super_block* sb;
     //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    if (S_ISBLK(inode->i_mode)) {
+        dev = inode->i_zone[0];
+        sb = get_super(dev);
+    }
+    else {
+        char name[BLOCK_SIZE];
+        char* pstr = name;
+        char c;
+        while ((c = get_fs_byte(dev_name++)))
+            *(pstr++) = c; 
+        *pstr = c;  // '\0'
+        /***************************************************************/
+        sb = get_super(inode->i_dev);
+        if (inode != sb->s_isup) {
+            iput(inode);
+            put_super(dev);
+            printk("umount: %s: not mounted\n", name);
+            return -ENOTBLK;
+        }
+        /***************************************************************/
+        dev = sb->s_dev;
+        // very tricky! Check what namei() has done!
+        iput(sb->s_imount); 
+    }
+    /***************************************************************/
+	iput(inode);
+	if (dev == ROOT_DEV) {
+        put_super(dev);
+        return -EBUSY;
+    }
     //////////////////////////////////////////////////////////////////////////
 	if (!sb || !(sb->s_imount)) return -ENOENT;
 	if (! sb->s_imount->i_mount) printk("Mounted inode has i_mount=0\n");
     /***************************************************************/
+    // since we set sb->s_isup, so here inode->i_count == 1
 	for (inode = inode_table; inode < inode_table+NR_INODE; ++inode)
-		if (inode->i_dev == dev && inode->i_count) return -EBUSY;
+		if (inode->i_dev == dev) {
+            if (inode->i_num == ROOT_INO) { 
+                if (inode->i_count > 1) return -EBUSY;
+            }
+            else if (inode->i_count)
+                return -EBUSY;
+        }
     /***************************************************************/
 	sb->s_imount->i_mount = 0;
 	iput(sb->s_imount);
