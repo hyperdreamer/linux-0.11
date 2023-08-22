@@ -58,6 +58,8 @@ void buffer_init(laddr_t buffer_end);
 
 #define INODES_PER_BLOCK (BLOCK_SIZE/sizeof(struct d_inode))
 #define DIR_ENTRIES_PER_BLOCK (BLOCK_SIZE/sizeof(struct dir_entry))
+#define I_MAX_BLCKS (7+512+512*512)
+#define I_MAX_DIR_ENTRIES (I_MAX_BLCKS * DIR_ENTRIES_PER_BLOCK)
 
 #define PIPE_HEAD(inode) ((inode).i_zone[0])
 #define PIPE_TAIL(inode) ((inode).i_zone[1])
@@ -66,6 +68,8 @@ void buffer_init(laddr_t buffer_end);
 #define PIPE_FULL(inode) (PIPE_SIZE(inode)==(PAGE_SIZE-1))
 #define INC_PIPE(head) \
 __asm__("incl %0\n\tandl $4095,%0"::"m" (head))
+
+typedef unsigned short inr_t;
 
 typedef char buffer_block[BLOCK_SIZE];
 
