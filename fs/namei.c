@@ -332,48 +332,57 @@ static struct m_inode* dir_namei(const char* pathname,
 /*
  * routine to check that the specified directory is empty (for rmdir)
  */
-static int empty_dir(struct m_inode * inode)
+static bool is_empty_dir(struct m_inode* inode)
 {
-	int nr,block;
-	int len;
-	struct buffer_head * bh;
-	struct dir_entry * de;
-
-	len = inode->i_size / sizeof (struct dir_entry);
-	if (len<2 || !inode->i_zone[0] ||
-	    !(bh=bread(inode->i_dev,inode->i_zone[0]))) {
-	    	printk("warning - bad directory on dev %04x\n",inode->i_dev);
-		return 0;
-	}
-	de = (struct dir_entry *) bh->b_data;
-	if (de[0].inode != inode->i_num || !de[1].inode || 
-	    strcmp(".",de[0].name) || strcmp("..",de[1].name)) {
-	    	printk("warning - bad directory on dev %04x\n",inode->i_dev);
-		return 0;
-	}
-	nr = 2;
-	de += 2;
-	while (nr<len) {
-		if ((void *) de >= (void *) (bh->b_data+BLOCK_SIZE)) {
-			brelse(bh);
-			block=bmap(inode,nr/DIR_ENTRIES_PER_BLOCK);
-			if (!block) {
-				nr += DIR_ENTRIES_PER_BLOCK;
-				continue;
-			}
-			if (!(bh=bread(inode->i_dev,block)))
-				return 0;
-			de = (struct dir_entry *) bh->b_data;
-		}
-		if (de->inode) {
-			brelse(bh);
-			return 0;
-		}
-		de++;
-		nr++;
-	}
-	brelse(bh);
-	return 1;
+    struct buffer_head* bh;
+    /***************************************************************/
+    int len = inode->i_size / sizeof(struct dir_entry);
+    /***************************************************************/
+    if (len < 2 || !inode->i_zone[0] ||
+        !(bh = bread(inode->i_dev, inode->i_zone[0]))) 
+    {
+        printk("warning - bad directory on dev %04x\n",inode->i_dev);
+        return false;
+    }
+    /***************************************************************/
+    struct dir_entry* de = (struct dir_entry*) bh->b_data;
+    /***************************************************************/
+    if (de[0].inode != inode->i_num || !de[1].inode || 
+        strcmp(".", de[0].name) || strcmp("..", de[1].name)) 
+    {
+        brelse(bh);     // added by Henry
+        printk("warning - bad directory on dev %04x\n",inode->i_dev);
+        return false;
+    }
+    /***************************************************************/
+    de += 2;
+    int nr = 2;
+    int block;
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    while (nr < len) {
+        if ((void*) de >= (void*) (bh->b_data + BLOCK_SIZE)) {
+            brelse(bh);
+            block = bmap(inode, nr / DIR_ENTRIES_PER_BLOCK);
+            if (!block) {
+                nr += DIR_ENTRIES_PER_BLOCK;
+                continue;
+            }
+            /******************************************************/
+            bh = bread(inode->i_dev, block);
+            if (!bh) return false;  // I/O error happened
+            de = (struct dir_entry*) bh->b_data;
+        }
+        /***************************************************************/
+        if (de->inode) {
+            brelse(bh);
+            return false;
+        }
+        ++de;
+        ++nr;
+    }
+    brelse(bh);
+    return true;
 }
 
 /*
@@ -696,7 +705,7 @@ int sys_rmdir(const char * name)
 		brelse(bh);
 		return -ENOTDIR;
 	}
-	if (!empty_dir(inode)) {
+	if (!is_empty_dir(inode)) {
 		iput(inode);
 		iput(dir);
 		brelse(bh);
