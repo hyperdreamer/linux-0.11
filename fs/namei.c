@@ -96,61 +96,68 @@ static int match(int len, const char* name, struct dir_entry* de)
  * may not sleep between calling this and putting something into
  * the entry, as someone else might have used it while you slept.
  */
-static struct buffer_head * add_entry(struct m_inode * dir,
-	const char * name, int namelen, struct dir_entry ** res_dir)
+static struct buffer_head* add_entry(struct m_inode* dir,
+                                      const char* name, 
+                                      int namelen, 
+                                      struct dir_entry** res_dir)
 {
-	int block,i;
-	struct buffer_head * bh;
-	struct dir_entry * de;
-
-	*res_dir = NULL;
 #ifdef NO_TRUNCATE
-	if (namelen > NAME_LEN)
-		return NULL;
+    if (namelen > NAME_LEN)
+        return NULL;
 #else
-	if (namelen > NAME_LEN)
-		namelen = NAME_LEN;
+    if (namelen > NAME_LEN)
+        namelen = NAME_LEN;
 #endif
-	if (!namelen)
-		return NULL;
-	if (!(block = dir->i_zone[0]))
-		return NULL;
-	if (!(bh = bread(dir->i_dev,block)))
-		return NULL;
-	i = 0;
-	de = (struct dir_entry *) bh->b_data;
-	while (1) {
-		if ((char *)de >= BLOCK_SIZE+bh->b_data) {
-			brelse(bh);
-			bh = NULL;
-			block = create_block(dir,i/DIR_ENTRIES_PER_BLOCK);
-			if (!block)
-				return NULL;
-			if (!(bh = bread(dir->i_dev,block))) {
-				i += DIR_ENTRIES_PER_BLOCK;
-				continue;
-			}
-			de = (struct dir_entry *) bh->b_data;
-		}
-		if (i*sizeof(struct dir_entry) >= dir->i_size) {
-			de->inode=0;
-			dir->i_size = (i+1)*sizeof(struct dir_entry);
-			dir->i_dirt = 1;
-			dir->i_ctime = CURRENT_TIME;
-		}
-		if (!de->inode) {
-			dir->i_mtime = CURRENT_TIME;
-			for (i=0; i < NAME_LEN ; i++)
-				de->name[i]=(i<namelen)?get_fs_byte(name+i):0;
-			bh->b_dirt = 1;
-			*res_dir = de;
-			return bh;
-		}
-		de++;
-		i++;
-	}
-	brelse(bh);
-	return NULL;
+    //////////////////////////////////////////////////////////////////////////
+    *res_dir = NULL;
+    if (!namelen) return NULL;
+    /***************************************************************/
+    int block = dir->i_zone[0];
+    if (!block) return NULL;
+    /***************************************************************/
+    /***************************************************************/
+    struct buffer_head* bh = bread(dir->i_dev, block);
+    if (!bh) return NULL;
+    /***************************************************************/
+    /***************************************************************/
+    int i = 0;
+    struct dir_entry* de = (struct dir_entry*) bh->b_data;
+    //////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+    while (true) {
+        if ((char*) de >= BLOCK_SIZE + bh->b_data) {
+            brelse(bh);
+            bh = NULL;
+            /***************************************************************/
+            block = create_block(dir, i / DIR_ENTRIES_PER_BLOCK);
+            if (!block) return NULL;
+            /***************************************************************/
+            bh = bread(dir->i_dev, block);
+            if (!bh) {  // I/O error
+                i += DIR_ENTRIES_PER_BLOCK;
+                continue;
+            }
+            de = (struct dir_entry *) bh->b_data;
+        }
+        if (i*sizeof(struct dir_entry) >= dir->i_size) {
+            de->inode=0;
+            dir->i_size = (i+1)*sizeof(struct dir_entry);
+            dir->i_dirt = 1;
+            dir->i_ctime = CURRENT_TIME;
+        }
+        if (!de->inode) {
+            dir->i_mtime = CURRENT_TIME;
+            for (i=0; i < NAME_LEN ; i++)
+                de->name[i]=(i<namelen)?get_fs_byte(name+i):0;
+            bh->b_dirt = 1;
+            *res_dir = de;
+            return bh;
+        }
+        de++;
+        i++;
+    }
+    brelse(bh);
+    return NULL;
 }
 
 /*
@@ -215,7 +222,7 @@ static struct buffer_head* find_entry(struct m_inode** dir,
         if ((char*) de >= BLOCK_SIZE + bh->b_data) {
             brelse(bh);
             bh = NULL;
-            if (!(block = bmap(*dir, i/DIR_ENTRIES_PER_BLOCK)) ||
+            if (!(block = bmap(*dir, i / DIR_ENTRIES_PER_BLOCK)) ||
                 !(bh = bread((*dir)->i_dev, block))) 
             {
                 i += DIR_ENTRIES_PER_BLOCK;
@@ -573,81 +580,98 @@ int sys_mknod(const char * filename, int mode, int dev)
 	return 0;
 }
 
-int sys_mkdir(const char * pathname, int mode)
+int sys_mkdir(const char* pathname, int mode)
 {
-	const char * basename;
-	int namelen;
-	struct m_inode * dir, * inode;
-	struct buffer_head * bh, *dir_block;
-	struct dir_entry * de;
-
-	if (!suser())
-		return -EPERM;
-	if (!(dir = dir_namei(pathname,&namelen,&basename)))
-		return -ENOENT;
-	if (!namelen) {
-		iput(dir);
-		return -ENOENT;
-	}
-	if (!permission(dir,MAY_WRITE)) {
-		iput(dir);
-		return -EPERM;
-	}
-	bh = find_entry(&dir,basename,namelen,&de);
-	if (bh) {
-		brelse(bh);
-		iput(dir);
-		return -EEXIST;
-	}
-	inode = new_inode(dir->i_dev);
-	if (!inode) {
-		iput(dir);
-		return -ENOSPC;
-	}
-	inode->i_size = 32;
-	inode->i_dirt = 1;
-	inode->i_mtime = inode->i_atime = CURRENT_TIME;
-	if (!(inode->i_zone[0]=new_block(inode->i_dev))) {
-		iput(dir);
-		inode->i_nlinks--;
-		iput(inode);
-		return -ENOSPC;
-	}
-	inode->i_dirt = 1;
-	if (!(dir_block=bread(inode->i_dev,inode->i_zone[0]))) {
-		iput(dir);
-		free_block(inode->i_dev,inode->i_zone[0]);
-		inode->i_nlinks--;
-		iput(inode);
-		return -ERROR;
-	}
-	de = (struct dir_entry *) dir_block->b_data;
-	de->inode=inode->i_num;
-	strcpy(de->name,".");
-	de++;
-	de->inode = dir->i_num;
-	strcpy(de->name,"..");
-	inode->i_nlinks = 2;
-	dir_block->b_dirt = 1;
-	brelse(dir_block);
-	inode->i_mode = I_DIRECTORY | (mode & 0777 & ~current->umask);
-	inode->i_dirt = 1;
-	bh = add_entry(dir,basename,namelen,&de);
-	if (!bh) {
-		iput(dir);
-		free_block(inode->i_dev,inode->i_zone[0]);
-		inode->i_nlinks=0;
-		iput(inode);
-		return -ENOSPC;
-	}
-	de->inode = inode->i_num;
-	bh->b_dirt = 1;
-	dir->i_nlinks++;
-	dir->i_dirt = 1;
-	iput(dir);
-	iput(inode);
-	brelse(bh);
-	return 0;
+    if (!suser()) return -EPERM;
+    //////////////////////////////////////////////////////////////////////////
+    int base_len;
+    const char* basename;
+    struct m_inode* dir = dir_namei(pathname, &base_len, &basename);
+    /***************************************************************/
+    /***************************************************************/
+    if (!dir) return -ENOENT;
+    if (!base_len) {
+        iput(dir);
+        return -ENOENT;
+    }
+    /***************************************************************/
+    if (!permission(dir, MAY_WRITE)) {
+        iput(dir);
+        return -EPERM;
+    }
+    /***************************************************************/
+    struct dir_entry* de;
+    struct buffer_head* bh = find_entry(&dir, basename, base_len, &de);
+    /***************************************************************/
+    /***************************************************************/
+    if (bh) {   // directory already exists
+        brelse(bh);
+        iput(dir);
+        return -EEXIST;
+    }
+    /***************************************************************/
+    struct m_inode* inode = new_inode(dir->i_dev);
+    /***************************************************************/
+    /***************************************************************/
+    if (!inode) {   // disk inodes have run out
+        iput(dir);
+        return -ENOSPC;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    inode->i_size = 32; // size of i-node?
+    inode->i_dirt = 1;
+    inode->i_mtime = inode->i_atime = CURRENT_TIME;
+    /***************************************************************/
+    if (!(inode->i_zone[0] = new_block(inode->i_dev))) {
+        iput(dir);
+        inode->i_nlinks--;// new_inode() set i_nlinks 1
+        iput(inode);
+        return -ENOSPC; // disk zones have run out
+    }
+    /***************************************************************/
+    inode->i_dirt = 1;
+    struct buffer_head* dir_block = bread(inode->i_dev, inode->i_zone[0]);
+    if (!dir_block) {   // I/O error happened
+        iput(dir);
+        free_block(inode->i_dev, inode->i_zone[0]);
+        inode->i_nlinks--;
+        iput(inode);
+        return -ERROR;
+    }
+    /***************************************************************/
+    /***************************************************************/
+    inode->i_dirt = 1;
+    de = (struct dir_entry*) dir_block->b_data;
+    de->inode = inode->i_num;
+    strcpy(de->name,".");
+    ++de;
+    /***************************************************************/
+    de->inode = dir->i_num;
+    strcpy(de->name, "..");
+    inode->i_nlinks = 2;
+    dir_block->b_dirt = 1;
+    brelse(dir_block);
+    /***************************************************************/
+    inode->i_mode = I_DIRECTORY | (mode & 0777 & ~current->umask);
+    inode->i_dirt = 1;
+    /***************************************************************/
+    bh = add_entry(dir, basename, base_len, &de);
+    if (!bh) {
+        iput(dir);
+        free_block(inode->i_dev,inode->i_zone[0]);
+        inode->i_nlinks=0;
+        iput(inode);
+        return -ENOSPC;
+    }
+    /***************************************************************/
+    de->inode = inode->i_num;
+    bh->b_dirt = 1;
+    dir->i_nlinks++;
+    dir->i_dirt = 1;
+    iput(dir);
+    iput(inode);
+    brelse(bh);
+    return 0;
 }
 
 int sys_rmdir(const char * name)

@@ -86,7 +86,7 @@ static inline void lock_buffer(struct buffer_head* bh)
 
 static inline void unlock_buffer(struct buffer_head* bh)
 {
-	if (!bh->b_lock) printk("buffer.c: buffer not locked\n");
+	if (!bh->b_lock) printk("bitmap.c: buffer not locked\n");
     //////////////////////////////////////////////////////////////////////////
 	cli();
 	bh->b_lock = 0;
@@ -205,8 +205,10 @@ struct m_inode* new_inode(int dev)
     struct m_inode* inode = get_empty_inode();
     if (!inode) return NULL;
     /***************************************************************/
+    /***************************************************************/
     struct super_block* sb = get_super(dev);
     if (!sb) panic("new_inode with unknown device");
+    /***************************************************************/
     /***************************************************************/
     struct buffer_head* bh;
     int i, j;
