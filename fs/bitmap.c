@@ -123,7 +123,12 @@ repeat:
     }
 #endif
     // the 0 zone is the boot block. If you get it, the disk is full.
-    if (i == sb->s_zmap_blocks) return 0;
+    if (i == sb->s_zmap_blocks) {
+#ifdef DEBUG
+        printkc("new_block: Dev %#x: run out of data zones!\n", dev);
+#endif
+        return 0;
+    }
     //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
     if (set_bit(j, bh->b_data)) {
@@ -234,6 +239,9 @@ repeat:
     }
 #endif
     if (i == sb->s_imap_blocks) {
+#ifdef DEBUG
+        printkc("new_inode: Dev %#x: run out of i-nodes!\n", dev);
+#endif
         iput(inode);
         return NULL;
     }
