@@ -90,24 +90,30 @@ static inline char * strncat(char * dest,const char * src,int count)
     return dest;
 }
 
-static inline int strcmp(const char * cs,const char * ct)
-{
-    register int __res __asm__("ax");
-    __asm__("cld\n"
-            "1:\tlodsb\n\t"
-            "scasb\n\t"
-            "jne 2f\n\t"
-            "testb %%al,%%al\n\t"
-            "jne 1b\n\t"
-            "xorl %%eax,%%eax\n\t"
-            "jmp 3f\n"
-            "2:\tmovl $1,%%eax\n\t"
-            "jl 3f\n\t"
-            "negl %%eax\n"
-            "3:"
-            :"=a" (__res)
-            :"D" (cs),"S" (ct));
-return __res;
+static inline int strcmp(const char* cs, const char* ct)
+{// return value: 0: cs "==" ct; negative cs < ct; positive cs > ct 
+    int __res;
+    __asm__ ("cld\n"
+             "1:\n\t"
+             "lodsb\n\t"    // %esi
+             "scasb\n\t"    // %edi
+             "jne 2f\n\t"   // acutally (%edi) - (%esi)
+             "testb %%al, %%al\n\t"
+             "jne 1b\n\t"
+             "xorl %%eax, %%eax\n\t"
+             "jmp 3f\n"
+             "2:\n\t"
+             "movl $1, %%eax\n\t"
+             "jl 3f\n\t"
+             "negl %%eax\n"
+             "3:\n\t"
+             :
+             "=a" (__res)
+             :
+             "D" (cs),
+             "S" (ct)
+            );
+    return __res;
 }
 
 static inline int strncmp(const char * cs,const char * ct,int count)
