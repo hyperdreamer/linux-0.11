@@ -38,6 +38,24 @@ static inline void unlock_inode(struct m_inode* inode)
     sti();
 }
 
+static inline void lock_buffer(struct buffer_head* bh)
+{
+	cli();
+	while (bh->b_lock) sleep_on(&bh->b_wait);
+	bh->b_lock = 1;
+	sti();
+}
+
+static inline void unlock_buffer(struct buffer_head* bh)
+{
+	if (!bh->b_lock) printk("inode.c: buffer not locked\n");
+    //////////////////////////////////////////////////////////////////////////
+	cli();
+	bh->b_lock = 0;
+	wake_up(&bh->b_wait);
+    sti();
+}
+
 // Only reding the inode's disk-exclusive info. 
 static void read_inode(struct m_inode* inode)
 {
@@ -96,11 +114,16 @@ static int _bmap(struct m_inode* inode, int block, int create)
     if (block >= 7+512+512*512) panic("_bmap: block>big");
     //////////////////////////////////////////////////////////////////////////
     if (block < 7) {
-        if (create && !inode->i_zone[block])
-            if ((inode->i_zone[block] = new_block(inode->i_dev))) {
+        if (create && !inode->i_zone[block]) {
+            lock_inode(inode);    
+            if (!inode->i_zone[block] &&
+                (inode->i_zone[block] = new_block(inode->i_dev))) 
+            {
                 inode->i_ctime = CURRENT_TIME;
                 inode->i_dirt = 1;
             }
+            unlock_inode(inode);
+        }
         /***************************************************************/
         return inode->i_zone[block];
     }
@@ -111,58 +134,81 @@ static int _bmap(struct m_inode* inode, int block, int create)
     //////////////////////////////////////////////////////////////////////////
     block -= 7;
     if (block < 512) {
-        if (create && !inode->i_zone[7])    // Indirect
-            if ((inode->i_zone[7] = new_block(inode->i_dev))) {
+        if (create && !inode->i_zone[7]) {   // Indirect
+            lock_inode(inode);    
+            if (!inode->i_zone[7] && 
+                (inode->i_zone[7] = new_block(inode->i_dev))) 
+            {
                 inode->i_ctime = CURRENT_TIME;
                 inode->i_dirt = 1;
             }
-        ///////////////////////////////////////////////////////////////////////
+            unlock_inode(inode);
+        }
+        /***************************************************************/
         if (!inode->i_zone[7]) return 0;    // new_block failed
-        ///////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         bh = bread(inode->i_dev, inode->i_zone[7]);
         if (!bh) return 0;  // if I/O error occurs
         /***************************************************************/
         i = ((unsigned short*) (bh->b_data))[block];
-        if (create && !i)
-            if ((i = new_block(inode->i_dev))) {
+        if (create && !i) {
+            lock_buffer(bh);
+            i = ((unsigned short*) (bh->b_data))[block];
+            if (!i && (i = new_block(inode->i_dev))) {
                 ((unsigned short*) (bh->b_data))[block] = i;
                 bh->b_dirt = 1;
             }
+            unlock_buffer(bh);
+        }
         brelse(bh);
-        ///////////////////////////////////////////////////////////////////////
+        /***************************************************************/
         return i;
     }
     //////////////////////////////////////////////////////////////////////////
     block -= 512;
-    if (create && !inode->i_zone[8])    // Double indirect
-        if ((inode->i_zone[8] = new_block(inode->i_dev))) {
+    if (create && !inode->i_zone[8]) {    // Double indirect
+        lock_inode(inode);    
+        if (!inode->i_zone[8] &&
+            (inode->i_zone[8] = new_block(inode->i_dev))) 
+        {
             inode->i_dirt=1;
             inode->i_ctime=CURRENT_TIME;
         }
+        unlock_inode(inode);
+    }
+    /***************************************************************/
     if (!inode->i_zone[8]) return 0;    // new_block failed
     //////////////////////////////////////////////////////////////////////////
     bh = bread(inode->i_dev, inode->i_zone[8]);
     if (!bh) return 0;  // if I/O error occurs
     i = ((unsigned short*) (bh->b_data))[block >> 9];
     /***************************************************************/
-    if (create && !i)
-        if ((i = new_block(inode->i_dev))) {
+    if (create && !i) {
+        lock_buffer(bh);
+        i = ((unsigned short*) (bh->b_data))[block >> 9];
+        if (!i && (i = new_block(inode->i_dev))) {
             ((unsigned short*) (bh->b_data))[block >> 9] = i;
             bh->b_dirt = 1;
         }
+        unlock_buffer(bh);
+    }
     brelse(bh);
     /***************************************************************/
     if (!i) return 0;
     //////////////////////////////////////////////////////////////////////////
     bh = bread(inode->i_dev, i);
     if (!bh) return 0;
-    /***************************************************************/
     i = ((unsigned short*) bh->b_data)[block & 511];
-    if (create && !i)
-        if ((i = new_block(inode->i_dev))) {
+    /***************************************************************/
+    if (create && !i) {
+        lock_buffer(bh);
+        i = ((unsigned short*) bh->b_data)[block & 511];
+        if (!i && (i = new_block(inode->i_dev))) {
             ((unsigned short*) (bh->b_data))[block & 511] = i;
-            bh->b_dirt=1;
+            bh->b_dirt = 1;
         }
+        lock_buffer(bh);
+    }
     brelse(bh);
     /***************************************************************/
     return i;
