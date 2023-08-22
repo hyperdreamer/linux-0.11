@@ -117,7 +117,7 @@ repeat:
     }   // find the nr of the first emtpy zone
     /***************************************************************/
 #ifdef DEBUG
-    if (j >= BLCK_BITS) {
+    if (j >= BLCK_BITS && i < sb->s_zmap_blocks) {
         printkc("new_block: Something wrong with the bitmap searching!\n");
         panic("new_block: Something wrong with the bitmap searching!");
     }
@@ -228,7 +228,7 @@ repeat:
     }   // find the nr of the first emtpy inode
     /***************************************************************/
 #ifdef DEBUG
-    if (j >= BLCK_BITS) {
+    if (j >= BLCK_BITS && i < sb->s_imap_blocks) {
         printkc("new_inode: Something wrong with the bitmap searching!\n");
         panic("new_inode: Something wrong with the bitmap searching!");
     }
