@@ -516,76 +516,85 @@ int open_namei(const char* pathname,
                int mode,
                struct m_inode** res_inode)
 {
-	const char * basename;
-	int inr,dev,namelen;
-	struct m_inode * dir, *inode;
-	struct buffer_head * bh;
-	struct dir_entry * de;
+    int inr,dev;
+    struct m_inode* inode;
 
-	if ((flag & O_TRUNC) && !(flag & O_ACCMODE)) flag |= O_WRONLY;
+    if ((flag & O_TRUNC) && !(flag & O_ACCMODE)) flag |= O_WRONLY;
     /***************************************************************/
-	mode &= 0777 & ~current->umask;
-	mode |= I_REGULAR;
+    mode &= 0777 & ~current->umask;
+    mode |= I_REGULAR;
     /***************************************************************/
-	if (!(dir = dir_namei(pathname,&namelen,&basename)))
-		return -ENOENT;
-	if (!namelen) {			/* special case: '/usr/' etc */
-		if (!(flag & (O_ACCMODE|O_CREAT|O_TRUNC))) {
-			*res_inode=dir;
-			return 0;
-		}
-		iput(dir);
-		return -EISDIR;
-	}
-	bh = find_entry(&dir,basename,namelen,&de);
-	if (!bh) {
-		if (!(flag & O_CREAT)) {
-			iput(dir);
-			return -ENOENT;
-		}
-		if (!permission(dir,MAY_WRITE)) {
-			iput(dir);
-			return -EACCES;
-		}
-		inode = new_inode(dir->i_dev);
-		if (!inode) {
-			iput(dir);
-			return -ENOSPC;
-		}
-		inode->i_uid = current->euid;
-		inode->i_mode = mode;
-		inode->i_dirt = 1;
-		bh = add_entry_safely(dir, basename, namelen, inode->i_num);
-		if (!bh) {
-			inode->i_nlinks--;
-			iput(inode);
-			iput(dir);
-			return -ENOSPC;
-		}
-		bh->b_dirt = 1;
-		brelse(bh);
-		iput(dir);
-		*res_inode = inode;
-		return 0;
-	}
-	inr = de->inode;
-	dev = dir->i_dev;
-	brelse(bh);
-	iput(dir);
-	if (flag & O_EXCL)
-		return -EEXIST;
-	if (!(inode=iget(dev,inr)))
-		return -EACCES;
-	if ((S_ISDIR(inode->i_mode) && (flag & O_ACCMODE)) ||
-	    !permission(inode,ACC_MODE(flag))) {
-		iput(inode);
-		return -EPERM;
-	}
-	inode->i_atime = CURRENT_TIME;
-	if (flag & O_TRUNC)
-		truncate(inode);
-	*res_inode = inode;
-	return 0;
+    int base_len;
+    const char* basename;
+    struct m_inode* dir = dir_namei(pathname, &base_len, &basename);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!dir) return -ENOENT;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!base_len) {			/* special case: '/usr/' etc */
+        if (!(flag & (O_ACCMODE|O_CREAT|O_TRUNC))) {
+            *res_inode = dir;
+            return 0;
+        }
+        /***************************************************************/
+        iput(dir);
+        return -EISDIR;
+    }
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    struct dir_entry* de;
+    struct buffer_head* bh = find_entry(&dir, basename, base_len, &de);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!bh) {
+        // only for new file creation
+        if (!(flag & O_CREAT)) {
+            iput(dir);
+            return -ENOENT;
+        }
+        /***************************************************************/
+        if (!permission(dir, MAY_WRITE)) {
+            iput(dir);
+            return -EACCES;
+        }
+        /***************************************************************/
+        inode = new_inode(dir->i_dev);
+        if (!inode) {
+            iput(dir);
+            return -ENOSPC;
+        }
+        /***************************************************************/
+        inode->i_uid = current->euid;
+        inode->i_mode = mode;
+        inode->i_dirt = 1;
+        bh = add_entry_safely(dir, basename, base_len, inode->i_num);
+        if (!bh) {
+            inode->i_nlinks--;
+            iput(inode);
+            iput(dir);
+            return -ENOSPC;
+        }
+        bh->b_dirt = 1;
+        brelse(bh);
+        iput(dir);
+        *res_inode = inode;
+        return 0;
+    }
+    inr = de->inode;
+    dev = dir->i_dev;
+    brelse(bh);
+    iput(dir);
+    if (flag & O_EXCL)
+        return -EEXIST;
+    if (!(inode=iget(dev,inr)))
+        return -EACCES;
+    if ((S_ISDIR(inode->i_mode) && (flag & O_ACCMODE)) ||
+        !permission(inode,ACC_MODE(flag))) {
+        iput(inode);
+        return -EPERM;
+    }
+    inode->i_atime = CURRENT_TIME;
+    if (flag & O_TRUNC)
+        truncate(inode);
+    *res_inode = inode;
+    return 0;
 }
 
 int sys_mknod(const char* pathname, int mode, int dev)
@@ -684,7 +693,10 @@ int sys_mkdir(const char* pathname, int mode)
     }
     /***************************************************************/
     if (!(inode->i_zone[0] = new_block(inode->i_dev))) {
-        free_inode(inode);
+        /***************************************************************/
+        inode->i_nlinks--;
+        iput(inode);
+        /***************************************************************/
         iput(dir);
         return -ENOSPC; // disk zones have run out
     }
@@ -693,7 +705,10 @@ int sys_mkdir(const char* pathname, int mode)
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (!dir_block) {   // I/O error happened
         free_block(inode->i_dev, inode->i_zone[0]);
-        free_inode(inode);
+        /***************************************************************/
+        inode->i_nlinks--;
+        iput(inode);
+        /***************************************************************/
         iput(dir);
         return -ERROR;
     }
@@ -715,7 +730,10 @@ int sys_mkdir(const char* pathname, int mode)
 #ifdef DEBUG
     if (inode->i_nlinks != 2) {
         free_block(inode->i_dev, inode->i_zone[0]);
-        free_inode(inode);
+        /***************************************************************/
+        inode->i_nlinks = 0;
+        iput(inode);
+        /***************************************************************/
         iput(dir);
         /***************************************************************/
         printkc("sys_mkdir: Wrong i_nlinks %d\n for the new dir", 
@@ -742,9 +760,12 @@ int sys_mkdir(const char* pathname, int mode)
     /***************************************************************/
     bh = add_entry_safely(dir, basename, base_len, inode->i_num);
     if (!bh) {
-        iput(dir);
         free_block(inode->i_dev, inode->i_zone[0]);
-        free_inode(inode);
+        /***************************************************************/
+        inode->i_nlinks = 0;
+        iput(inode);
+        /***************************************************************/
+        iput(dir);
         return -ENOSPC;
     }
     bh->b_dirt = 1;
