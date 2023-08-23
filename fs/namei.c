@@ -677,9 +677,7 @@ int sys_mkdir(const char* pathname, int mode)
     /***************************************************************/
     if (!(inode->i_zone[0] = new_block(inode->i_dev))) {
         iput(dir);
-        inode->i_nlinks--;  // new_inode() set i_nlinks 1
-        inode->i_dirt = 1;
-        iput(inode);
+        free_inode(inode);
         return -ENOSPC; // disk zones have run out
     }
     /***************************************************************/
@@ -688,9 +686,7 @@ int sys_mkdir(const char* pathname, int mode)
     if (!dir_block) {   // I/O error happened
         iput(dir);
         free_block(inode->i_dev, inode->i_zone[0]);
-        inode->i_nlinks--;
-        inode->i_dirt = 1;
-        iput(inode);
+        free_inode(inode);
         return -ERROR;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -699,16 +695,14 @@ int sys_mkdir(const char* pathname, int mode)
     de->inode = inode->i_num;
     strcpy(de->name,".");
     inode->i_nlinks++;    // .
-    inode->i_ctime = inode->mtime = CURRENT_TIME;
+    inode->i_ctime = inode->i_mtime = CURRENT_TIME;
     inode->i_dirt = 1;
     ++de;
 #ifdef DEBUG
     if (inode->i_nlinks != 2) {
         iput(dir);
         free_block(inode->i_dev, inode->i_zone[0]);
-        inode->i_nlinks = 0;
-        inode->i_dirt = 1;
-        iput(inode);
+        free_inode(inode);
         /***************************************************************/
         printkc("sys_mkdir: Wrong i_nlinks %d\n for the new dir", 
                 inode->i_nlinks);
@@ -718,7 +712,7 @@ int sys_mkdir(const char* pathname, int mode)
     /***************************************************************/
     de->inode = dir->i_num;
     strcpy(de->name, "..");
-    inode->mtime = CURRENT_TIME;
+    inode->i_mtime = CURRENT_TIME;
     inode->i_dirt = 1;
     dir_block->b_dirt = 1;
     brelse(dir_block);
@@ -730,9 +724,7 @@ int sys_mkdir(const char* pathname, int mode)
     if (!bh) {
         iput(dir);
         free_block(inode->i_dev, inode->i_zone[0]);
-        inode->i_nlinks = 0;
-        inode->i_dirt = 1;
-        iput(inode);
+        free_inode(inode);
         return -ENOSPC;
     }
     /***************************************************************/
