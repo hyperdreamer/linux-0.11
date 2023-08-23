@@ -784,18 +784,18 @@ int sys_rmdir(const char* pathname)
         return -EPERM;
     }
     /***************************************************************/
-    if ((dir->i_mode & S_ISVTX) && current->euid &&
-        inode->i_uid != current->euid) 
+    if ((dir->i_mode & S_ISVTX) && !suser() && inode->i_uid != current->euid) 
     {
+        iput(inode);
         brelse(bh);
         iput(dir);
-        iput(inode);
         return -EPERM;
     }
+    /***************************************************************/
     if (inode->i_dev != dir->i_dev || inode->i_count>1) {
+        iput(inode);
         brelse(bh);
         iput(dir);
-        iput(inode);
         return -EPERM;
     }
     if (inode == dir) {	/* we may not delete ".", but "../dir" is ok */
