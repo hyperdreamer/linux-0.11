@@ -511,8 +511,10 @@ struct m_inode* namei(const char* pathname)
  *
  * namei for open - this is in fact almost the whole open-routine.
  */
-int open_namei(const char * pathname, int flag, int mode,
-	struct m_inode ** res_inode)
+int open_namei(const char* pathname, 
+               int flag, 
+               int mode,
+               struct m_inode** res_inode)
 {
 	const char * basename;
 	int inr,dev,namelen;
@@ -520,10 +522,11 @@ int open_namei(const char * pathname, int flag, int mode,
 	struct buffer_head * bh;
 	struct dir_entry * de;
 
-	if ((flag & O_TRUNC) && !(flag & O_ACCMODE))
-		flag |= O_WRONLY;
+	if ((flag & O_TRUNC) && !(flag & O_ACCMODE)) flag |= O_WRONLY;
+    /***************************************************************/
 	mode &= 0777 & ~current->umask;
 	mode |= I_REGULAR;
+    /***************************************************************/
 	if (!(dir = dir_namei(pathname,&namelen,&basename)))
 		return -ENOENT;
 	if (!namelen) {			/* special case: '/usr/' etc */
@@ -585,53 +588,62 @@ int open_namei(const char * pathname, int flag, int mode,
 	return 0;
 }
 
-int sys_mknod(const char * filename, int mode, int dev)
+int sys_mknod(const char* pathname, int mode, int dev)
 {
-    const char * basename;
-    int namelen;
-    struct m_inode * dir, * inode;
-    struct buffer_head * bh;
-    struct dir_entry * de;
-
-    if (!suser())
-        return -EPERM;
-    if (!(dir = dir_namei(filename,&namelen,&basename)))
-        return -ENOENT;
-    if (!namelen) {
+    if (!suser()) return -EPERM;
+    /***************************************************************/
+    int base_len;
+    const char* basename;
+    struct m_inode* dir = dir_namei(pathname, &base_len, &basename);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!dir) return -ENOENT;
+    /***************************************************************/
+    if (!base_len) {
         iput(dir);
         return -ENOENT;
     }
-    if (!permission(dir,MAY_WRITE)) {
+    /***************************************************************/
+    if (!permission(dir, MAY_WRITE)) {
         iput(dir);
         return -EPERM;
     }
-    bh = find_entry(&dir,basename,namelen,&de);
+    /***************************************************************/
+    struct dir_entry* de;
+    struct buffer_head* bh = find_entry(&dir, basename, base_len, &de);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (bh) {
         brelse(bh);
         iput(dir);
         return -EEXIST;
     }
-    inode = new_inode(dir->i_dev);
+    /***************************************************************/
+    struct m_inode* inode = new_inode(dir->i_dev);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (!inode) {
         iput(dir);
         return -ENOSPC;
     }
+    //////////////////////////////////////////////////////////////////////////
+
     inode->i_mode = mode;
-    if (S_ISBLK(mode) || S_ISCHR(mode))
-        inode->i_zone[0] = dev;
-    inode->i_mtime = inode->i_atime = CURRENT_TIME;
+    if (S_ISBLK(mode) || S_ISCHR(mode)) inode->i_zone[0] = dev;
+    /***************************************************************/
+    inode->i_mtime = inode->i_ctime = inode->i_atime = CURRENT_TIME;
     inode->i_dirt = 1;
-    bh = add_entry_safely(dir, basename, namelen, inode->i_num);
+    /***************************************************************/
+    bh = add_entry_safely(dir, basename, base_len, inode->i_num);
     if (!bh) {
-        iput(dir);
-        inode->i_nlinks=0;
+        inode->i_nlinks = 0;
         iput(inode);
+        iput(dir);
         return -ENOSPC;
     }
+    /***************************************************************/
     bh->b_dirt = 1;
-    iput(dir);
-    iput(inode);
     brelse(bh);
+    /***************************************************************/
+    iput(inode);
+    iput(dir);
     return 0;
 }
 
@@ -663,7 +675,6 @@ int sys_mkdir(const char* pathname, int mode)
         iput(dir);
         return -EEXIST;
     }
-    brelse(bh); // don't forget this
     /***************************************************************/
     struct m_inode* inode = new_inode(dir->i_dev);
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
@@ -792,104 +803,112 @@ int sys_rmdir(const char* pathname)
         return -EPERM;
     }
     /***************************************************************/
-    if (inode->i_dev != dir->i_dev || inode->i_count>1) {
+    if (inode->i_dev != dir->i_dev || inode->i_count > 1) {
         iput(inode);
         brelse(bh);
         iput(dir);
         return -EPERM;
     }
+    /***************************************************************/
     if (inode == dir) {	/* we may not delete ".", but "../dir" is ok */
+        iput(inode);
         brelse(bh);
         iput(dir);
-        iput(inode);
         return -EPERM;
     }
+    /***************************************************************/
     if (!S_ISDIR(inode->i_mode)) {
         iput(inode);
-        iput(dir);
         brelse(bh);
+        iput(dir);
         return -ENOTDIR;
     }
+    /***************************************************************/
     if (!is_empty_dir(inode)) {
         iput(inode);
-        iput(dir);
         brelse(bh);
+        iput(dir);
         return -ENOTEMPTY;
     }
+    /***************************************************************/
     if (inode->i_nlinks != 2)
-        printk("empty directory has nlink!=2 (%d)",inode->i_nlinks);
+        printk("empty directory has nlink!=2 (%d)", inode->i_nlinks);
+    //////////////////////////////////////////////////////////////////////////
+
     de->inode = 0;
     bh->b_dirt = 1;
     brelse(bh);
-    inode->i_nlinks=0;
-    inode->i_dirt=1;
+    /***************************************************************/
+    inode->i_nlinks = 0;
+    inode->i_dirt = 1;
+    iput(inode);    // don't free_inode(), you have to truncate() it
+    /***************************************************************/
     dir->i_nlinks--;
     dir->i_ctime = dir->i_mtime = CURRENT_TIME;
-    dir->i_dirt=1;
+    dir->i_dirt = 1;
     iput(dir);
-    iput(inode);
     return 0;
 }
 
-int sys_unlink(const char * name)
+int sys_unlink(const char* name)
 {
-	const char * basename;
-	int namelen;
-	struct m_inode * dir, * inode;
-	struct buffer_head * bh;
-	struct dir_entry * de;
+    const char * basename;
+    int namelen;
+    struct m_inode * dir, * inode;
+    struct buffer_head * bh;
+    struct dir_entry * de;
 
-	if (!(dir = dir_namei(name,&namelen,&basename)))
-		return -ENOENT;
-	if (!namelen) {
-		iput(dir);
-		return -ENOENT;
-	}
-	if (!permission(dir,MAY_WRITE)) {
-		iput(dir);
-		return -EPERM;
-	}
-	bh = find_entry(&dir,basename,namelen,&de);
-	if (!bh) {
-		iput(dir);
-		return -ENOENT;
-	}
-	if (!(inode = iget(dir->i_dev, de->inode))) {
-		iput(dir);
-		brelse(bh);
-		return -ENOENT;
-	}
-	if ((dir->i_mode & S_ISVTX) && !suser() &&
-	    current->euid != inode->i_uid &&
-	    current->euid != dir->i_uid) {
-		iput(dir);
-		iput(inode);
-		brelse(bh);
-		return -EPERM;
-	}
-	if (S_ISDIR(inode->i_mode)) {
-		iput(inode);
-		iput(dir);
-		brelse(bh);
-		return -EPERM;
-	}
-	if (!inode->i_nlinks) {
-		printk("Deleting nonexistent file (%04x:%d), %d\n",
-			inode->i_dev,inode->i_num,inode->i_nlinks);
-		inode->i_nlinks=1;
-	}
-	de->inode = 0;
-	bh->b_dirt = 1;
-	brelse(bh);
-	inode->i_nlinks--;
-	inode->i_dirt = 1;
-	inode->i_ctime = CURRENT_TIME;
-	iput(inode);
-	iput(dir);
-	return 0;
+    if (!(dir = dir_namei(name,&namelen,&basename)))
+        return -ENOENT;
+    if (!namelen) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!permission(dir,MAY_WRITE)) {
+        iput(dir);
+        return -EPERM;
+    }
+    bh = find_entry(&dir,basename,namelen,&de);
+    if (!bh) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!(inode = iget(dir->i_dev, de->inode))) {
+        iput(dir);
+        brelse(bh);
+        return -ENOENT;
+    }
+    if ((dir->i_mode & S_ISVTX) && !suser() &&
+        current->euid != inode->i_uid &&
+        current->euid != dir->i_uid) {
+        iput(dir);
+        iput(inode);
+        brelse(bh);
+        return -EPERM;
+    }
+    if (S_ISDIR(inode->i_mode)) {
+        iput(inode);
+        iput(dir);
+        brelse(bh);
+        return -EPERM;
+    }
+    if (!inode->i_nlinks) {
+        printk("Deleting nonexistent file (%04x:%d), %d\n",
+               inode->i_dev,inode->i_num,inode->i_nlinks);
+        inode->i_nlinks=1;
+    }
+    de->inode = 0;
+    bh->b_dirt = 1;
+    brelse(bh);
+    inode->i_nlinks--;
+    inode->i_dirt = 1;
+    inode->i_ctime = CURRENT_TIME;
+    iput(inode);
+    iput(dir);
+    return 0;
 }
 
-int sys_link(const char * oldname, const char * newname)
+int sys_link(const char* oldname, const char* newname)
 {
 	struct dir_entry * de;
 	struct m_inode * oldinode, * dir;
