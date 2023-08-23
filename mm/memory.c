@@ -81,7 +81,7 @@ static unsigned char mem_map[PAGING_PAGES] = {0};
  */
 unsigned long get_free_page(void)
 {
-    register unsigned long __res asm("%eax");
+    unsigned long __res;
 
     __asm__ ("std\n\t"                  // backwards operation
              "repne scasb\n\t"
@@ -105,6 +105,7 @@ unsigned long get_free_page(void)
              :
              "%edx"
             );
+
     return __res;
 }
 

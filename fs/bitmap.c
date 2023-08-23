@@ -79,7 +79,12 @@
 static inline void lock_buffer(struct buffer_head* bh)
 {
 	cli();
-	while (bh->b_lock) sleep_on(&bh->b_wait);
+    while (bh->b_lock) {
+#ifdef DEBUG
+        printkc("bitmap.c: lock_buffer: Oops!\n");
+#endif
+        sleep_on(&bh->b_wait);
+    } 	
 	bh->b_lock = 1;
 	sti();
 }

@@ -12,7 +12,7 @@
 #include <asm/system.h>
 
 extern struct super_block super_block[NR_SUPER];
-struct m_inode inode_table[NR_INODE]= {};
+struct m_inode inode_table[NR_INODE] = {};
 static struct task_struct* empty_ireq_wait = NULL;
 
 static struct task_struct* load_ireq_wait = NULL;
@@ -21,7 +21,12 @@ static int load_ireq_lock = 0;
 static inline void lock_load_ireq()
 {
     cli();
-    while (load_ireq_lock) sleep_on(&load_ireq_wait);
+    while (load_ireq_lock) {
+#ifdef DEBUG
+        printkc("inode.c: lock_load_ireq: Oops!\n");
+#endif
+        sleep_on(&load_ireq_wait);
+    }
     load_ireq_lock = 1;
     sti();
 }
@@ -37,14 +42,24 @@ static inline void unlock_load_ireq()
 static inline void wait_on_inode(struct m_inode* inode)
 {
     cli();
-    while (inode->i_lock) sleep_on(&inode->i_wait);
+    while (inode->i_lock) {
+#ifdef DEBUG
+        printkc("inode.c: wait_on_inode: Oops!\n");
+#endif
+        sleep_on(&inode->i_wait);
+    }
     sti();
 }
 
 static inline void lock_inode(struct m_inode* inode)
 {
     cli();
-    while (inode->i_lock) sleep_on(&inode->i_wait);
+    while (inode->i_lock) {
+#ifdef DEBUG
+        printkc("inode.c: lock_inode: Oops!\n");
+#endif
+        sleep_on(&inode->i_wait);
+    }
     inode->i_lock=1;
     sti();
 }
@@ -60,7 +75,12 @@ static inline void unlock_inode(struct m_inode* inode)
 static inline void lock_buffer(struct buffer_head* bh)
 {
 	cli();
-	while (bh->b_lock) sleep_on(&bh->b_wait);
+    while (bh->b_lock) {
+#ifdef DEBUG
+        printkc("inode.c: lock_buffer: Oops!\n");
+#endif
+        sleep_on(&bh->b_wait);
+    } 	
 	bh->b_lock = 1;
 	sti();
 }
@@ -312,8 +332,8 @@ repeat:
 struct m_inode* get_pipe_inode(void)
 {
     struct m_inode* inode = get_empty_inode();
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (!inode) return NULL;
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     if (!(inode->i_size = get_free_page())) {
 #ifdef DEBUG

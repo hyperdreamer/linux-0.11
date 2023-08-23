@@ -126,8 +126,8 @@ struct m_inode {
 
 struct file {
     unsigned short f_mode;
-    unsigned short f_flags;     // status like being opened, ... ???
-    unsigned short f_count;     // file descriptor number (index in filp) ???
+    unsigned short f_flags;     // status like being opened, ...
+    unsigned short f_count;     // file descriptor number (index in filp)
     struct m_inode* f_inode;
     off_t f_pos;                // off_t is a synoym for long
 };

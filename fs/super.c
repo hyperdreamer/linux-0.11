@@ -39,7 +39,12 @@ struct super_block super_block[NR_SUPER] = {};
 static inline void lock_super(struct super_block* sb)
 {
     cli();
-    while (sb->s_lock) sleep_on(&(sb->s_wait));
+    while (sb->s_lock) {
+#ifdef DEBUG
+        printkc("super.c: lock_super: Oops!\n");
+#endif
+        sleep_on(&(sb->s_wait));
+    }
     sb->s_lock = 1;
     sti();
 }
@@ -55,7 +60,12 @@ static inline void unlock_super(struct super_block* sb)
 static inline void wait_on_super(struct super_block* sb)
 {
     cli();
-    while (sb->s_lock) sleep_on(&(sb->s_wait));
+    while (sb->s_lock) {
+#ifdef DEBUG
+        printkc("super.c: wait_on_super: Oops!\n");
+#endif
+        sleep_on(&(sb->s_wait));
+    }
     sti();
 }
 

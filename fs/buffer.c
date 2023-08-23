@@ -40,15 +40,26 @@ int NR_BUFFERS = 0;
 static inline void wait_on_buffer(struct buffer_head* bh)
 {
 	cli();
-	while (bh->b_lock) sleep_on(&bh->b_wait);
+	while (bh->b_lock) { 
+#undef DEBUG
+#ifdef DEBUG
+        printkc("buffer.c: wait_on_buffer: Oops!\n");
+#endif
+        sleep_on(&bh->b_wait);
+    }
 	sti();
 }
 
 static inline void lock_buffer(struct buffer_head* bh)
 {
 	cli();
-	while (bh->b_lock) sleep_on(&bh->b_wait);
-	bh->b_lock = 1;
+    while (bh->b_lock) {
+#ifdef DEBUG
+        printkc("buffer.c: lock_inode: Oops!\n");
+#endif
+        sleep_on(&bh->b_wait);
+    } 	
+    bh->b_lock = 1;
 	sti();
 }
 
