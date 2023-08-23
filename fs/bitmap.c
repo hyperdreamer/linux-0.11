@@ -98,11 +98,11 @@ int new_block(int dev)
 {
     struct super_block* sb = get_super(dev);
     if (!sb) panic("trying to get new block from nonexistant device");
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     struct buffer_head* bh;
     int i, j;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
 repeat:
     for (i = 0; i < sb->s_zmap_blocks; ++i) {
         bh = sb->s_zmap[i];
@@ -130,6 +130,7 @@ repeat:
         return 0;
     }
     //////////////////////////////////////////////////////////////////////////
+
     lock_buffer(bh);
     if (set_bit(j, bh->b_data)) {
 #ifdef DEBUG
@@ -180,8 +181,8 @@ void free_block(int dev, int block)
     if (!sb) panic("trying to free block on nonexistent device");
     if (block < sb->s_firstdatazone || block >= sb->s_nzones)
         panic("trying to free block not in datazone");
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
     bh = get_hash_table(dev, block);
     if (bh) {
         if (bh->b_count != 1) {
@@ -209,16 +210,14 @@ struct m_inode* new_inode(int dev)
 {
     struct m_inode* inode = get_empty_inode();
     if (!inode) return NULL;
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     struct super_block* sb = get_super(dev);
     if (!sb) panic("new_inode with unknown device");
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     struct buffer_head* bh;
     int i, j;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
 repeat:
     for (i = 0; i < sb->s_imap_blocks; ++i) {
         bh = sb->s_imap[i];
@@ -238,6 +237,7 @@ repeat:
         panic("new_inode: Something wrong with the bitmap searching!");
     }
 #endif
+    /***************************************************************/
     if (i == sb->s_imap_blocks) {
 #ifdef DEBUG
         printkc("new_inode: Dev %#x: run out of i-nodes!\n", dev);
@@ -246,6 +246,7 @@ repeat:
         return NULL;
     }
     //////////////////////////////////////////////////////////////////////////
+
     lock_buffer(bh);
     if (set_bit(j, bh->b_data)) {
 #ifdef DEBUG
@@ -254,10 +255,12 @@ repeat:
         unlock_buffer(bh);
         goto repeat;
     }
+    /***************************************************************/
     bh->b_dirt = 1;
     j += i * BLCK_BITS;
     if (j > sb->s_ninodes) {
         iput(inode);
+        unlock_buffer(bh);  // critical
         return NULL;
     }
     unlock_buffer(bh);
@@ -280,8 +283,7 @@ void free_inode(struct m_inode* inode)
     /***************************************************************/
     int inr = inode->i_num;
     if (inr < 1) panic("tring to free inode 0 or negative inodes");
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	if (!inode->i_dev) {
 		memset(inode, 0, sizeof(*inode));
 		return;
@@ -297,12 +299,11 @@ void free_inode(struct m_inode* inode)
 	struct super_block* sb = get_super(inode->i_dev);
 	if (!sb) panic("trying to free inode on nonexistent device");
 	if (inr > sb->s_ninodes) panic("trying to nonexistant inode");
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	struct buffer_head* bh = sb->s_imap[IMAP_INDX(inr)];
 	if (!bh) panic("nonexistent imap in superblock");
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
 	if (clear_bit(inr & BLCK_MASK, bh->b_data))
 		printk("free_inode: bit already cleared.\n\r");
     /***************************************************************/
