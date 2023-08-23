@@ -371,8 +371,7 @@ struct m_inode* iget(int dev, int nr)
     if (!dev) panic("iget with dev==0");
 repeat:
     struct m_inode* inode = inode_table;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     while (inode < NR_INODE + inode_table) {
         if (inode->i_dev != dev || inode->i_num != nr) {
             ++inode;
@@ -396,6 +395,7 @@ repeat:
         // Finally we have inode->idev == dev && inode->inum == nr
         if (inode->i_mount) {
             register int i;
+            //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
             for (i = 0; ; ++i) {
                 if (i == NR_SUPER) {
                     printk("iget(): Mounted inode hasn't got sb!\n");
@@ -416,6 +416,7 @@ repeat:
     }
     //////////////////////////////////////////////////////////////////////////
     struct m_inode* empty = get_empty_inode();
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 #ifdef DEBUG
     if(!empty) {
         printkc("iget: get_empty_inode() mustn't be NULL!\n");
