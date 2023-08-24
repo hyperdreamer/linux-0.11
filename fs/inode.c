@@ -13,7 +13,6 @@
 
 extern struct super_block super_block[NR_SUPER];
 struct m_inode inode_table[NR_INODE] = {};
-static struct task_struct* empty_ireq_wait = NULL;
 
 static struct task_struct* load_ireq_wait = NULL;
 static int load_ireq_lock = 0;
@@ -277,8 +276,7 @@ struct m_inode* get_empty_inode(void)
 {
     static struct m_inode* last_inode = inode_table;
     struct m_inode* inode;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 repeat:
     do {
         inode = NULL;
@@ -299,7 +297,6 @@ repeat:
 #ifdef DEBUG
             printkc("get_empty_inode: i-node in mem has been run out!\n");
 #endif
-            sleep_on(&empty_ireq_wait);
             goto repeat;
         }
         /***************************************************************/
@@ -365,13 +362,11 @@ void iput(struct m_inode* inode)
         inode->i_dirt = 0;
         inode->i_pipe = 0;
         inode->i_count = 0; // do this at the end
-        wake_up(&empty_ireq_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
     if (!inode->i_dev) {    // the device is not valid anymore
         inode->i_count--;
-        wake_up(&empty_ireq_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -383,7 +378,6 @@ void iput(struct m_inode* inode)
 repeat:
     if (inode->i_count > 1) {
         inode->i_count--;
-        wake_up(&empty_ireq_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -391,7 +385,6 @@ repeat:
         // it is safe to do truncate, since it is an orphan in the filesystem
         truncate(inode);        // TO_READ
         free_inode(inode);
-        wake_up(&empty_ireq_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -402,7 +395,6 @@ repeat:
     }
     //////////////////////////////////////////////////////////////////////////
     inode->i_count--;
-    wake_up(&empty_ireq_wait);
     return;
 }
 
