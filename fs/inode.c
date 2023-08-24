@@ -13,35 +13,13 @@
 
 extern struct super_block super_block[NR_SUPER];
 struct m_inode inode_table[NR_INODE] = {};
-
-static struct task_struct* load_ireq_wait = NULL;
-static int load_ireq_lock = 0;
-
-static inline void lock_load_ireq()
-{
-    cli();
-    while (load_ireq_lock) {
-#ifdef DEBUG
-        printkc("inode.c: lock_load_ireq: Oops!\n");
-#endif
-        sleep_on(&load_ireq_wait);
-    }
-    load_ireq_lock = 1;
-    sti();
-}
-
-static inline void unlock_load_ireq()
-{
-    cli();
-    load_ireq_lock = 0;
-    wake_up(&load_ireq_wait);
-    sti();
-}
+static struct task_struct* empty_inode_wait = NULL;
 
 static inline void wait_on_inode(struct m_inode* inode)
 {
     cli();
     while (inode->i_lock) {
+#undef DEBUG
 #ifdef DEBUG
         printkc("inode.c: wait_on_inode: Oops!\n");
 #endif
@@ -71,98 +49,66 @@ static inline void unlock_inode(struct m_inode* inode)
     sti();
 }
 
-static inline void lock_buffer(struct buffer_head* bh)
-{
-	cli();
-    while (bh->b_lock) {
-#ifdef DEBUG
-        printkc("inode.c: lock_buffer: Oops!\n");
-#endif
-        sleep_on(&bh->b_wait);
-    } 	
-	bh->b_lock = 1;
-	sti();
-}
-
-static inline void unlock_buffer(struct buffer_head* bh)
-{
-	if (!bh->b_lock) printk("inode.c: buffer not locked\n");
-    //////////////////////////////////////////////////////////////////////////
-	cli();
-	bh->b_lock = 0;
-	wake_up(&bh->b_wait);
-    sti();
-}
-
 // Only reding the inode's disk-exclusive info. 
 static void read_inode(struct m_inode* inode)
 {
     lock_inode(inode);
-
+    //////////////////////////////////////////////////////////////////////////
     struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to read inode without dev");
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
                 + (inode->i_num - 1)/INODES_PER_BLOCK;
     struct buffer_head* bh = bread(inode->i_dev, block);
     if (!bh) panic("read_inode(): unable to read i-node block");
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-
     *(struct d_inode *)inode =
         ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK];
     /***************************************************************/
     brelse(bh); // The reading procedure doesn't occupy the inode.
-
+    //////////////////////////////////////////////////////////////////////////
     unlock_inode(inode);
 }
 
 static void write_inode(struct m_inode* inode)
 {
     lock_inode(inode);
+    //////////////////////////////////////////////////////////////////////////
     if (!inode->i_dirt || !inode->i_dev) {
         unlock_inode(inode);
         return;
     }
-
-    // modified by Henry
+    //////////////////////////////////////////////////////////////////////////
     struct super_block* sb = get_super(inode->i_dev);
     if (!sb) panic("trying to write inode without device");
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-
     int block = 2 + sb->s_imap_blocks + sb->s_zmap_blocks
                 + (inode->i_num-1)/INODES_PER_BLOCK;
     struct buffer_head* bh = bread(inode->i_dev, block);
     if (!bh) panic("write_inode(): unable to find i-node!");
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-
     ((struct d_inode *)bh->b_data)[(inode->i_num-1)%INODES_PER_BLOCK] =
         *(struct d_inode *)inode;
     /***************************************************************/
     bh->b_dirt = 1;
     inode->i_dirt = 0;
     brelse(bh); // have to release it after write 
-
+    //////////////////////////////////////////////////////////////////////////
     unlock_inode(inode);
 }
 
 // arg: block: the block in the i-node not in the disk
 static int _bmap(struct m_inode* inode, int block, int create)
 {
-    /***************************************************************/
     if (block < 0) panic("_bmap: block < 0");
     if (block >= 7+512+512*512) panic("_bmap: block>big");
     //////////////////////////////////////////////////////////////////////////
     if (block < 7) {
         if (create && !inode->i_zone[block]) {
-            lock_inode(inode);    
-            if (!inode->i_zone[block] &&
-                (inode->i_zone[block] = new_block(inode->i_dev))) 
-            {
+            if ((inode->i_zone[block] = new_block(inode->i_dev))) {
                 inode->i_ctime = CURRENT_TIME;
                 inode->i_dirt = 1;
             }
-            unlock_inode(inode);
         }
         /***************************************************************/
         return inode->i_zone[block];
@@ -170,19 +116,14 @@ static int _bmap(struct m_inode* inode, int block, int create)
     //////////////////////////////////////////////////////////////////////////
     struct buffer_head* bh;
     int i;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     block -= 7;
     if (block < 512) {
         if (create && !inode->i_zone[7]) {   // Indirect
-            lock_inode(inode);    
-            if (!inode->i_zone[7] && 
-                (inode->i_zone[7] = new_block(inode->i_dev))) 
-            {
+            if ((inode->i_zone[7] = new_block(inode->i_dev))) {
                 inode->i_ctime = CURRENT_TIME;
                 inode->i_dirt = 1;
             }
-            unlock_inode(inode);
         }
         /***************************************************************/
         if (!inode->i_zone[7]) return 0;    // new_block failed
@@ -192,13 +133,10 @@ static int _bmap(struct m_inode* inode, int block, int create)
         /***************************************************************/
         i = ((unsigned short*) (bh->b_data))[block];
         if (create && !i) {
-            lock_buffer(bh);
-            i = ((unsigned short*) (bh->b_data))[block];
-            if (!i && (i = new_block(inode->i_dev))) {
+            if ((i = new_block(inode->i_dev))) {
                 ((unsigned short*) (bh->b_data))[block] = i;
                 bh->b_dirt = 1;
             }
-            unlock_buffer(bh);
         }
         brelse(bh);
         /***************************************************************/
@@ -207,14 +145,10 @@ static int _bmap(struct m_inode* inode, int block, int create)
     //////////////////////////////////////////////////////////////////////////
     block -= 512;
     if (create && !inode->i_zone[8]) {    // Double indirect
-        lock_inode(inode);    
-        if (!inode->i_zone[8] &&
-            (inode->i_zone[8] = new_block(inode->i_dev))) 
-        {
+        if ((inode->i_zone[8] = new_block(inode->i_dev))) {
             inode->i_dirt=1;
             inode->i_ctime=CURRENT_TIME;
         }
-        unlock_inode(inode);
     }
     /***************************************************************/
     if (!inode->i_zone[8]) return 0;    // new_block failed
@@ -224,13 +158,10 @@ static int _bmap(struct m_inode* inode, int block, int create)
     i = ((unsigned short*) (bh->b_data))[block >> 9];
     /***************************************************************/
     if (create && !i) {
-        lock_buffer(bh);
-        i = ((unsigned short*) (bh->b_data))[block >> 9];
-        if (!i && (i = new_block(inode->i_dev))) {
+        if ((i = new_block(inode->i_dev))) {
             ((unsigned short*) (bh->b_data))[block >> 9] = i;
             bh->b_dirt = 1;
         }
-        unlock_buffer(bh);
     }
     brelse(bh);
     /***************************************************************/
@@ -241,33 +172,16 @@ static int _bmap(struct m_inode* inode, int block, int create)
     i = ((unsigned short*) bh->b_data)[block & 511];
     /***************************************************************/
     if (create && !i) {
-        lock_buffer(bh);
-        i = ((unsigned short*) bh->b_data)[block & 511];
-        if (!i && (i = new_block(inode->i_dev))) {
+        if ((i = new_block(inode->i_dev))) {
             ((unsigned short*) (bh->b_data))[block & 511] = i;
             bh->b_dirt = 1;
         }
-        lock_buffer(bh);
     }
     brelse(bh);
     /***************************************************************/
     return i;
 }
 	
-// no lock! no check nr! use it cautiously
-static inline struct m_inode* find_inode_directly(int dev, int nr)
-{
-    struct m_inode* inode = inode_table;
-    while (inode < NR_INODE + inode_table) {
-        if (inode->i_dev != dev || inode->i_num != nr) {
-            ++inode;
-            continue;
-        }
-        return inode;
-    }
-    return NULL;
-}
-
 /*
  **************************** INTERFACE **************************************
  */
@@ -277,13 +191,10 @@ struct m_inode* get_empty_inode(void)
     static struct m_inode* last_inode = inode_table;
     struct m_inode* inode;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-repeat:
-    do {
+    for ( ; ; ) {
         inode = NULL;
-        register int i;
-        /***************************************************************/
-        /***************************************************************/
-        for (i = 0; i < NR_INODE; ++i) {
+        //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        for (int i = 0; i < NR_INODE; ++i) {
             if (++last_inode >= inode_table + NR_INODE)
                 last_inode = inode_table;   // circular
             /***************************************************************/
@@ -295,9 +206,10 @@ repeat:
         /***************************************************************/
         if (!inode) {
 #ifdef DEBUG
-            printkc("get_empty_inode: i-node in mem has been run out!\n");
+            printkc("get_empty_inode: i-node in mem has run out!\n");
 #endif
-            goto repeat;
+            sleep_on(&empty_inode_wait);
+            continue;
         }
         /***************************************************************/
         wait_on_inode(inode);
@@ -305,23 +217,12 @@ repeat:
             write_inode(inode);
             wait_on_inode(inode);
         }
-    } while (inode->i_count);
-    //////////////////////////////////////////////////////////////////////////
-    // the result is unreliable have to add a lock
-    lock_inode(inode);
-    if (inode->i_count || inode->i_dirt) {
-#ifdef DEBUG
-        printkc("get_empty_inode():\n");
-        printkc("\tThe empty candidate is taken while sleeping!\n");
-#endif
         /***************************************************************/
-        unlock_inode(inode);
-        goto repeat;
-    }
-    // we can do this safely, because interrupts are disabled!!!
+        if (!inode->i_count) break;
+    } 
+    //////////////////////////////////////////////////////////////////////////
     memset(inode, 0, sizeof(*inode));
     inode->i_count = 1;     // mark it as used ahead
-    unlock_inode(inode);
     //////////////////////////////////////////////////////////////////////////
     return inode;
 }
@@ -361,16 +262,18 @@ void iput(struct m_inode* inode)
         free_page(inode->i_size);
         inode->i_dirt = 0;
         inode->i_pipe = 0;
-        inode->i_count = 0; // do this at the end
+        inode->i_count = 0;
+        wake_up(&empty_inode_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
     if (!inode->i_dev) {    // the device is not valid anymore
         inode->i_count--;
+        wake_up(&empty_inode_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
-    if (S_ISBLK(inode->i_mode)) {   // TO_READ
+    if (S_ISBLK(inode->i_mode)) {
         sync_dev(inode->i_zone[0]);
         wait_on_inode(inode);
     }
@@ -385,6 +288,7 @@ repeat:
         // it is safe to do truncate, since it is an orphan in the filesystem
         truncate(inode);        // TO_READ
         free_inode(inode);
+        wake_up(&empty_inode_wait);
         return;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -395,10 +299,11 @@ repeat:
     }
     //////////////////////////////////////////////////////////////////////////
     inode->i_count--;
+    wake_up(&empty_inode_wait);
     return;
 }
 
-// no check of vadility of nr! Use it cautiously
+// no check of vadility of nr! Use it with caution!
 struct m_inode* iget(int dev, int nr)
 {
     if (!dev) panic("iget with dev==0");
@@ -411,23 +316,19 @@ repeat:
             continue;
         }
         /***************************************************************/
-        inode->i_count++;   // make sure that it won't be released in mem
-        /***************************************************************/
-        // Though we've try our best to make sure i-node won't be released,
-        // ship happens! so we have to check again
         wait_on_inode(inode);
         if (inode->i_dev != dev || inode->i_num != nr) {
 #ifdef DEBUG
             printkc("iget(): the inode changed during sleep!\n");
 #endif
-            inode->i_count--;
             inode = inode_table;
             continue;
         }
+        inode->i_count++;
         ///////////////////////////////////////////////////////////////////////
         // Finally we have inode->idev == dev && inode->inum == nr
         if (inode->i_mount) {
-            register int i;
+            int i;
             //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
             for (i = 0; ; ++i) {
                 if (i == NR_SUPER) {
@@ -456,20 +357,9 @@ repeat:
         panic("iget: get_empty_inode() mustn't be NULL!");
     }
 #endif
-    /***************************************************************/
-    lock_load_ireq();
-    if (find_inode_directly(dev, nr)) {
-#ifdef DEBUG
-        printkc("iget: someone has load inode (%d, %d) into memory.\n", dev, nr);
-#endif
-        unlock_load_ireq();
-        iput(empty);        // don't forget this!!!
-        goto repeat;     
-    }
     inode = empty;
     inode->i_dev = dev;
     inode->i_num = nr;
-    unlock_load_ireq();
     read_inode(inode);
     //////////////////////////////////////////////////////////////////////////
     return inode;
@@ -478,7 +368,7 @@ repeat:
 void sync_inodes(void)
 {
     struct m_inode* inode = inode_table;
-    for(register int i = 0; i < NR_INODE; ++i, ++inode) {
+    for(int i = 0; i < NR_INODE; ++i, ++inode) {
         wait_on_inode(inode);
         if (inode->i_dirt && !inode->i_pipe)
             write_inode(inode);
@@ -488,7 +378,7 @@ void sync_inodes(void)
 void invalidate_inodes(int dev)
 {
     struct m_inode* inode = inode_table;
-    for(register int i = 0; i < NR_INODE; ++i, ++inode) {
+    for(int i = 0; i < NR_INODE; ++i, ++inode) {
         wait_on_inode(inode);
         if (inode->i_dev == dev) {
             if (inode->i_count) printk("inode in use on removed disk\n");

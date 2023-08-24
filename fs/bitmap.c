@@ -9,7 +9,6 @@
 
 #include <linux/sched.h>
 #include <linux/kernel.h>
-#include <asm/system.h>
 
 #define clear_block(addr) \
     __asm__ __volatile__("cld\n\t" \
@@ -264,7 +263,6 @@ void free_inode(struct m_inode* inode)
 	struct buffer_head* bh = sb->s_imap[IMAP_INDX(inr)];
 	if (!bh) panic("nonexistent imap in superblock");
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-
 	if (clear_bit(inr & BLCK_MASK, bh->b_data))
 		printk("free_inode: bit already cleared.\n\r");
     /***************************************************************/
