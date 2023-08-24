@@ -76,29 +76,6 @@
         __res; \
     })
 
-static inline void lock_buffer(struct buffer_head* bh)
-{
-	cli();
-    while (bh->b_lock) {
-#ifdef DEBUG
-        printkc("bitmap.c: lock_buffer: Oops!\n");
-#endif
-        sleep_on(&bh->b_wait);
-    } 	
-	bh->b_lock = 1;
-	sti();
-}
-
-static inline void unlock_buffer(struct buffer_head* bh)
-{
-	if (!bh->b_lock) printk("bitmap.c: buffer not locked\n");
-    //////////////////////////////////////////////////////////////////////////
-	cli();
-	bh->b_lock = 0;
-	wake_up(&bh->b_wait);
-    sti();
-}
-
 int new_block(int dev)
 {
     struct super_block* sb = get_super(dev);
@@ -108,7 +85,6 @@ int new_block(int dev)
     int i, j;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 
-repeat:
     for (i = 0; i < sb->s_zmap_blocks; ++i) {
         bh = sb->s_zmap[i];
 #ifdef DEBUG
@@ -135,20 +111,11 @@ repeat:
         return 0;
     }
     //////////////////////////////////////////////////////////////////////////
-
-    lock_buffer(bh);
-    if (set_bit(j, bh->b_data)) {
-#ifdef DEBUG
-        printkc("new_block: the empty zone was taken, while sleeping\n");
-#endif
-        unlock_buffer(bh);
-        goto repeat;
-    }
+    if (set_bit(j, bh->b_data)) panic("new_block: bit already set!");
     /***************************************************************/
     bh->b_dirt = 1;
     // why -1 ? Check the debugging info in read_super()
     j += i * BLCK_BITS + sb->s_firstdatazone - 1;
-    unlock_buffer(bh);
     /***************************************************************/
     if (j >= sb->s_nzones) return 0;    // crutical!!!
     /***************************************************************/
@@ -165,7 +132,7 @@ repeat:
         j -= i * BLCK_BITS + sb->s_firstdatazone - 1;
         /******************************************************/
         if (clear_bit(j, tmp->b_data))
-            printk("new_block: Something weird happened!\n");
+            panic("new_block: bit already cleared!");
         /******************************************************/
         if (!bh) panic("new_block: cannot get block");
         if (bh->b_count != 1) panic("new block: count is != 1");
@@ -223,7 +190,6 @@ struct m_inode* new_inode(int dev)
     int i, j;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 
-repeat:
     for (i = 0; i < sb->s_imap_blocks; ++i) {
         bh = sb->s_imap[i];
 #ifdef DEBUG
@@ -251,24 +217,14 @@ repeat:
         return NULL;
     }
     //////////////////////////////////////////////////////////////////////////
-
-    lock_buffer(bh);
-    if (set_bit(j, bh->b_data)) {
-#ifdef DEBUG
-        printkc("new_node: the empty inode was taken, while sleeping\n");
-#endif
-        unlock_buffer(bh);
-        goto repeat;
-    }
+    if (set_bit(j, bh->b_data)) panic("new_node: bit already set");
     /***************************************************************/
     bh->b_dirt = 1;
     j += i * BLCK_BITS;
     if (j > sb->s_ninodes) {
         iput(inode);
-        unlock_buffer(bh);  // critical
         return NULL;
     }
-    unlock_buffer(bh);
     /***************************************************************/
     //inode->i_count = 1;   // already set by get_empty_inode()
     inode->i_nlinks = 1;
