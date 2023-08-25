@@ -31,29 +31,6 @@
 #define MAY_WRITE 2
 #define MAY_READ 4
 
-static inline void lock_inode(struct m_inode* inode)
-{
-    cli();
-    while (inode->i_lock) {
-#ifdef DEBUG
-        printkc("namei.c: lock_inode: Oops!\n");
-#endif
-        sleep_on(&inode->i_wait);
-    }
-    inode->i_lock=1;
-    sti();
-}
-
-static inline void unlock_inode(struct m_inode* inode)
-{
-	if (!inode->i_lock) printk("namei.c: inode not locked\n");
-    //////////////////////////////////////////////////////////////////////////
-    cli();
-    inode->i_lock=0;
-    wake_up(&inode->i_wait);
-    sti();
-}
-
 /*
  *	permission()
  *
@@ -115,10 +92,10 @@ static int match(int len, const char* name, struct dir_entry* de)
  * may not sleep between calling this and putting something into
  * the entry, as someone else might have used it while you slept.
  */
-static struct buffer_head* add_entry_safely(struct m_inode* dir,
-                                            const char* name, 
-                                            int namelen, 
-                                            inr_t inr)
+static struct buffer_head* add_entry(struct m_inode* dir,
+                                     const char* name, 
+                                     int namelen, 
+                                     inr_t inr)
 {
 #ifdef NO_TRUNCATE
     if (namelen > NAME_LEN)
@@ -127,21 +104,18 @@ static struct buffer_head* add_entry_safely(struct m_inode* dir,
     if (namelen > NAME_LEN)
         namelen = NAME_LEN;
 #endif
-    //////////////////////////////////////////////////////////////////////////
-    if (!namelen) return NULL;
     /***************************************************************/
+    if (!namelen) return NULL;
+    //////////////////////////////////////////////////////////////////////////
     int block = dir->i_zone[0];
     if (!block) return NULL;
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     struct buffer_head* bh = bread(dir->i_dev, block);
     if (!bh) return NULL;
-    /***************************************************************/
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     int i = 0;
     struct dir_entry* de = (struct dir_entry*) bh->b_data;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     while (i < I_MAX_DIR_ENTRIES) {
         if ((char*) de >= BLOCK_SIZE + bh->b_data) {
             brelse(bh);
@@ -158,12 +132,11 @@ static struct buffer_head* add_entry_safely(struct m_inode* dir,
             de = (struct dir_entry *) bh->b_data;
         }
         //////////////////////////////////////////////////////////////////////
-        lock_inode(dir);
         if (i * sizeof(struct dir_entry) >= dir->i_size) {
 #ifdef DEBUG
             if (de->inode) {
-                printkc("add_entry_safely: new entry with non-zero inode!\n");
-                panic("add_entry_safely: new entry with non-zero inode!");
+                printkc("add_entry: new entry with non-zero inode!\n");
+                panic("add_entry: new entry with non-zero inode!");
             }
 #endif
             dir->i_size = (i+1)*sizeof(struct dir_entry);
@@ -181,10 +154,8 @@ static struct buffer_head* add_entry_safely(struct m_inode* dir,
             /***************************************************************/
             bh->b_dirt = 1;
             /***************************************************************/
-            unlock_inode(dir);
             return bh;
         }
-        unlock_inode(dir);
         //////////////////////////////////////////////////////////////////////
         ++de;
         ++i;
@@ -375,31 +346,29 @@ static struct m_inode* dir_namei(const char* pathname,
 static bool is_empty_dir(struct m_inode* inode)
 {
     struct buffer_head* bh;
-    /***************************************************************/
     int len = inode->i_size / sizeof(struct dir_entry);
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (len < 2 || !inode->i_zone[0] ||
         !(bh = bread(inode->i_dev, inode->i_zone[0]))) 
     {
-        printk("warning - bad directory on dev %04x\n",inode->i_dev);
+        printk("warning - bad directory on dev %04x\n", inode->i_dev);
         return false;
     }
     /***************************************************************/
     struct dir_entry* de = (struct dir_entry*) bh->b_data;
-    /***************************************************************/
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (de[0].inode != inode->i_num || !de[1].inode || 
         strcmp(".", de[0].name) || strcmp("..", de[1].name)) 
     {
         brelse(bh);     // added by Henry
-        printk("warning - bad directory on dev %04x\n",inode->i_dev);
+        printk("warning - bad directory on dev %04x\n", inode->i_dev);
         return false;
     }
     /***************************************************************/
     de += 2;
     int nr = 2;
     int block;
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     while (nr < len) {
         if ((void*) de >= (void*) (bh->b_data + BLOCK_SIZE)) {
             brelse(bh);
@@ -539,7 +508,7 @@ int open_namei(const char* pathname,
         inode->i_mode = mode;
         inode->i_dirt = 1;
         /***************************************************************/
-        bh = add_entry_safely(dir, basename, base_len, inode->i_num);
+        bh = add_entry(dir, basename, base_len, inode->i_num);
         if (!bh) {
             inode->i_nlinks--;
             iput(inode);
@@ -622,7 +591,7 @@ int sys_mknod(const char* pathname, int mode, int dev)
     inode->i_mtime = inode->i_ctime = inode->i_atime = CURRENT_TIME;
     inode->i_dirt = 1;
     /***************************************************************/
-    bh = add_entry_safely(dir, basename, base_len, inode->i_num);
+    bh = add_entry(dir, basename, base_len, inode->i_num);
     if (!bh) {
         inode->i_nlinks = 0;
         iput(inode);
@@ -739,7 +708,7 @@ int sys_mkdir(const char* pathname, int mode)
     dir->i_ctime = CURRENT_TIME;    // essential for mode change
     inode->i_dirt = 1;
     //////////////////////////////////////////////////////////////////////////
-    bh = add_entry_safely(dir, basename, base_len, inode->i_num);
+    bh = add_entry(dir, basename, base_len, inode->i_num);
     if (!bh) {
         free_block(inode->i_dev, inode->i_zone[0]);
         /*******************************************************/
@@ -959,7 +928,7 @@ int sys_link(const char* oldname, const char* newname)
         return -EEXIST;
     }
     //////////////////////////////////////////////////////////////////////////
-    bh = add_entry_safely(dir, basename, base_len, oldinode->i_num);
+    bh = add_entry(dir, basename, base_len, oldinode->i_num);
     if (!bh) {
         iput(dir);
         iput(oldinode);
