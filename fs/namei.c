@@ -610,7 +610,7 @@ int sys_mknod(const char* pathname, int mode, int dev)
 int sys_mkdir(const char* pathname, int mode)
 {
     if (!suser()) return -EPERM;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     int base_len;
     const char* basename;
     struct m_inode* dir = dir_namei(pathname, &base_len, &basename);

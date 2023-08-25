@@ -111,11 +111,10 @@ int new_block(int dev)
     }
     //////////////////////////////////////////////////////////////////////////
     if (set_bit(j, bh->b_data)) panic("new_block: bit already set!");
-    /***************************************************************/
     bh->b_dirt = 1;
+    /***************************************************************/
     // why -1 ? Check the debugging info in read_super()
     j += i * BLCK_BITS + sb->s_firstdatazone - 1;
-    /***************************************************************/
     if (j >= sb->s_nzones) return 0;    // crutical!!!
     /***************************************************************/
     // getblk() here acutually finds a empty buffer block
@@ -217,8 +216,8 @@ struct m_inode* new_inode(int dev)
     }
     //////////////////////////////////////////////////////////////////////////
     if (set_bit(j, bh->b_data)) panic("new_node: bit already set");
-    /***************************************************************/
     bh->b_dirt = 1;
+    /***************************************************************/
     j += i * BLCK_BITS;
     if (j > sb->s_ninodes) {
         iput(inode);

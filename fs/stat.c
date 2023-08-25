@@ -53,6 +53,8 @@ int sys_fstat(unsigned int fd, struct stat* statbuf)
     return 0;
 }
 
+// Symbolic links are not implemented in Linux 0.11. So sys_lstat()
+// & sys_stat are just the same.
 int sys_lstat(char* filename, struct stat* statbuf)
 {
     return sys_stat(filename, statbuf);

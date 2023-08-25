@@ -59,7 +59,7 @@ struct tty_struct tty_table[] =
             0,		/* console termio */
             INIT_C_CC
         },
-        /***************************************************************/
+        /********************************************************/
         0,			/* initial pgrp */
         0,			/* initial stopped */
         con_write,
@@ -75,7 +75,9 @@ struct tty_struct tty_table[] =
             B2400 | CS8,
             0,
             0,
-            INIT_C_CC},
+            INIT_C_CC
+        },
+        /********************************************************/
         0,
         0,
         rs_write,
@@ -85,12 +87,15 @@ struct tty_struct tty_table[] =
     },
     /***************************************************************/
     {
-        {0, /* no translation */
+        {
+            0, /* no translation */
             0,  /* no translation */
             B2400 | CS8,
             0,
             0,
-            INIT_C_CC},
+            INIT_C_CC
+        },
+        /********************************************************/
         0,
         0,
         rs_write,

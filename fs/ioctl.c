@@ -31,14 +31,12 @@ int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {	
 	struct file* filp;
 	if (fd >= NR_OPEN || !(filp = current->filp[fd])) return -EBADF;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
 	int mode = filp->f_inode->i_mode;
 	if (!S_ISCHR(mode) && !S_ISBLK(mode)) return -EINVAL;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
 	int dev = filp->f_inode->i_zone[0];
 	if (MAJOR(dev) >= NRDEVS) return -ENODEV;
-    /***************************************************************/
 	if (!ioctl_table[MAJOR(dev)]) return -ENOTTY;
-    //////////////////////////////////////////////////////////////////////////
 	return ioctl_table[MAJOR(dev)](dev, cmd, arg);
 }
