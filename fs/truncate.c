@@ -8,40 +8,40 @@
 
 #include <sys/stat.h>
 
-static void free_ind(int dev,int block)
+static void free_ind(int dev, int block)
 {
-	struct buffer_head * bh;
-	unsigned short * p;
-	int i;
+    struct buffer_head * bh;
+    unsigned short * p;
+    int i;
 
-	if (!block)
-		return;
-	if ((bh=bread(dev,block))) {
-		p = (unsigned short *) bh->b_data;
-		for (i=0;i<512;i++,p++)
-			if (*p)
-				free_block(dev,*p);
-		brelse(bh);
-	}
-	free_block(dev,block);
+    if (!block)
+        return;
+    if ((bh=bread(dev,block))) {
+        p = (unsigned short *) bh->b_data;
+        for (i=0;i<512;i++,p++)
+            if (*p)
+                free_block(dev,*p);
+        brelse(bh);
+    }
+    free_block(dev,block);
 }
 
-static void free_dind(int dev,int block)
+static void free_dind(int dev, int block)
 {
-	struct buffer_head * bh;
-	unsigned short * p;
-	int i;
+    struct buffer_head * bh;
+    unsigned short * p;
+    int i;
 
-	if (!block)
-		return;
-	if ((bh=bread(dev,block))) {
-		p = (unsigned short *) bh->b_data;
-		for (i=0;i<512;i++,p++)
-			if (*p)
-				free_ind(dev,*p);
-		brelse(bh);
-	}
-	free_block(dev,block);
+    if (!block)
+        return;
+    if ((bh=bread(dev,block))) {
+        p = (unsigned short *) bh->b_data;
+        for (i=0;i<512;i++,p++)
+            if (*p)
+                free_ind(dev,*p);
+        brelse(bh);
+    }
+    free_block(dev,block);
 }
 
 void truncate(struct m_inode* inode)

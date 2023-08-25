@@ -48,47 +48,56 @@
 #define O_NLRET(tty)	_O_FLAG((tty),ONLRET)
 #define O_LCUC(tty)	_O_FLAG((tty),OLCUC)
 
-struct tty_struct tty_table[] = {
-	{
-		{ICRNL,		/* change incoming CR to NL */
-		OPOST|ONLCR,	/* change outgoing NL to CRNL */
-		0,
-		ISIG | ICANON | ECHO | ECHOCTL | ECHOKE,
-		0,		/* console termio */
-		INIT_C_CC},
-		0,			/* initial pgrp */
-		0,			/* initial stopped */
-		con_write,
-		{0,0,0,0,""},		/* console read-queue */
-		{0,0,0,0,""},		/* console write-queue */
-		{0,0,0,0,""}		/* console secondary queue */
-	},{
-		{0, /* no translation */
-		0,  /* no translation */
-		B2400 | CS8,
-		0,
-		0,
-		INIT_C_CC},
-		0,
-		0,
-		rs_write,
-		{0x3f8,0,0,0,""},		/* rs 1 */
-		{0x3f8,0,0,0,""},
-		{0,0,0,0,""}
-	},{
-		{0, /* no translation */
-		0,  /* no translation */
-		B2400 | CS8,
-		0,
-		0,
-		INIT_C_CC},
-		0,
-		0,
-		rs_write,
-		{0x2f8,0,0,0,""},		/* rs 2 */
-		{0x2f8,0,0,0,""},
-		{0,0,0,0,""}
-	}
+struct tty_struct tty_table[] = 
+{
+    {
+        {   
+            ICRNL,		/* change incoming CR to NL */
+            OPOST|ONLCR,	/* change outgoing NL to CRNL */
+            0,
+            ISIG | ICANON | ECHO | ECHOCTL | ECHOKE,
+            0,		/* console termio */
+            INIT_C_CC
+        },
+        /***************************************************************/
+        0,			/* initial pgrp */
+        0,			/* initial stopped */
+        con_write,
+        {0,0,0,0,""},		/* console read-queue */
+        {0,0,0,0,""},		/* console write-queue */
+        {0,0,0,0,""}		/* console secondary queue */
+    },
+    /***************************************************************/
+    {
+        {   
+            0, /* no translation */
+            0,  /* no translation */
+            B2400 | CS8,
+            0,
+            0,
+            INIT_C_CC},
+        0,
+        0,
+        rs_write,
+        {0x3f8,0,0,0,""},		/* rs 1 */
+        {0x3f8,0,0,0,""},
+        {0,0,0,0,""}
+    },
+    /***************************************************************/
+    {
+        {0, /* no translation */
+            0,  /* no translation */
+            B2400 | CS8,
+            0,
+            0,
+            INIT_C_CC},
+        0,
+        0,
+        rs_write,
+        {0x2f8,0,0,0,""},		/* rs 2 */
+        {0x2f8,0,0,0,""},
+        {0,0,0,0,""}
+    }
 };
 
 /*

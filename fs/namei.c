@@ -546,6 +546,7 @@ int open_namei(const char* pathname,
             iput(dir);
             return -ENOSPC;
         }
+        /***************************************************************/
         bh->b_dirt = 1;
         brelse(bh);
         iput(dir);

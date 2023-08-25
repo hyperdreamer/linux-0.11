@@ -94,7 +94,7 @@ struct d_inode {
     unsigned short i_uid;
     unsigned long i_size;       // file size
     unsigned long i_time;       // file's time of last modification
-    unsigned char i_gid;
+    unsigned char i_gid;        // gid no more than 255
     unsigned char i_nlinks;     // for hard link
     unsigned short i_zone[9];   // zone 0~6, indirect, double indirect
 };
