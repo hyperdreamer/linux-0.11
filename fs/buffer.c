@@ -135,24 +135,6 @@ static inline struct buffer_head* find_buffer(int dev, int block)
     return NULL;
 }
 
-static inline struct buffer_head* find_free_buffer()
-{
-#define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
-
-    struct buffer_head* bh = NULL;
-    struct buffer_head* tmp = free_list;
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-    do {
-        if (tmp->b_count) continue;
-        if (!bh || BADNESS(tmp)<BADNESS(bh)) {
-            bh = tmp;
-            if (!BADNESS(tmp)) return bh;
-        } /* and repeat until we find something good */
-    } while ((tmp = tmp->b_next_free) != free_list);
-    //////////////////////////////////////////////////////////////////////////
-    return NULL;
-}
-
 #define COPYBLK(from, to) \
     __asm__ ("cld\n\t" \
              "rep movsl\n\t" \
@@ -238,60 +220,52 @@ struct buffer_head* get_hash_table(int dev, int block)
  *
  * The algoritm is changed: hopefully better, and an elusive bug removed.
  */
-// Modified by Henry
 struct buffer_head* getblk(int dev, int block)
 {
+#define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
+
 repeat:
-    /* Step 1. Check the hash table */
-    struct buffer_head* bh = get_hash_table(dev, block); // reliable
+    struct buffer_head* tmp = free_list;
+    struct buffer_head* bh = get_hash_table(dev,block);
+    if (bh) return bh;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-    if (bh) return bh;  // if in hash table directly return it! reliable
-    //////////////////////////////////////////////////////////////////////////
-    /* 
-     * Step 2. 
-     * if the block is not in the buffer, you have to find a free 
-     * buffer block to read into.
-     */
-    bh = find_free_buffer();    // unreliable
+    do {
+        if (tmp->b_count) continue;
+        /*******************************************************/
+        if (!bh || BADNESS(tmp) < BADNESS(bh)) {
+            bh = tmp;
+            if (!BADNESS(tmp)) break;
+        } /* and repeat until we find something good */
+    } while ((tmp = tmp->b_next_free) != free_list);
     /***************************************************************/
-    // if no free buffer exists, have to wait for one.
     if (!bh) {
         sleep_on(&buffer_wait);
         goto repeat;
     }
     /***************************************************************/
-    // Finally we have a free candiate! But we have to check dirty flag
     wait_on_buffer(bh);
+    if (bh->b_count) goto repeat;
+    /***************************************************************/
     while (bh->b_dirt) {
-        //sync_dev(bh->b_dev);  // sync the whole device is too much
-        // Furthermore, this get rid of an elusive circular dependency:
-        // write_inode()
         sync_buffer(bh);
         wait_on_buffer(bh);
-        if(bh->b_count) goto repeat;
+        if (bh->b_count) goto repeat;
     }
-    /*#######################################################################*/
-    /*#######################################################################*/
-    /* OK, FINALLY we know that this buffer is the only one of it's kind, */
+    //////////////////////////////////////////////////////////////////////////
     /* NOTE!! While we slept waiting for this block, somebody else might */
     /* already have added "this" block to the cache. check it */
-    if (find_buffer(dev, block)) {
-#ifdef DEBUG
-        printkc("\ngetblk: Someone already loaded a buffer block "
-                "(%d, %d) while sleeping!\n", dev, block);
-#endif
-        goto repeat;
-    }
-    //////////////////////////////////////////////////////////////////////////
+    if (find_buffer(dev, block)) goto repeat;
+    /* OK, FINALLY we know that this buffer is the only one of it's kind, */
+    /* and that it's unused (b_count=0), unlocked (b_lock=0), and clean */
+    bh->b_count=1;
+    bh->b_dirt=0;
+    bh->b_uptodate=0;
     remove_from_queues(bh);
     /***************************************************************/
-    bh->b_dev = dev;
-    bh->b_blocknr = block;
-    bh->b_count = 1;
-    bh->b_dirt = 0;
-    bh->b_uptodate = 0;
+    bh->b_dev=dev;
+    bh->b_blocknr=block;
     insert_into_queues(bh);
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     return bh;
 }
 
