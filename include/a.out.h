@@ -1,5 +1,4 @@
-#ifndef _A_OUT_H
-#define _A_OUT_H
+#pragma once
 
 #define __GNU_EXEC_MACROS__
 
@@ -37,11 +36,11 @@ struct exec {
  (N_MAGIC(x) != OMAGIC && N_MAGIC(x) != NMAGIC		\
   && N_MAGIC(x) != ZMAGIC)
 
-#define _N_HDROFF(x) (SEGMENT_SIZE - sizeof (struct exec))
+#define _N_HDROFF(x) (SEGMENT_SIZE - sizeof(struct exec))
 
 #ifndef N_TXTOFF
 #define N_TXTOFF(x) \
- (N_MAGIC(x) == ZMAGIC ? _N_HDROFF((x)) + sizeof (struct exec) : sizeof (struct exec))
+ (N_MAGIC(x) == ZMAGIC ? _N_HDROFF((x)) + sizeof(struct exec) : sizeof(struct exec))
 #endif
 
 #ifndef N_DATOFF
@@ -75,22 +74,32 @@ struct exec {
 #if defined(vax) || defined(hp300) || defined(pyr)
 #define SEGMENT_SIZE PAGE_SIZE
 #endif
-#ifdef	hp300
+
+#ifdef hp300
 #define	PAGE_SIZE	4096
 #endif
-#ifdef	sony
+
+#ifdef sony
 #define	SEGMENT_SIZE	0x2000
 #endif	/* Sony.  */
+
 #ifdef is68k
 #define SEGMENT_SIZE 0x20000
 #endif
+
 #if defined(m68k) && defined(PORTAR)
 #define PAGE_SIZE 0x400
 #define SEGMENT_SIZE PAGE_SIZE
 #endif
 
+// default segment size & page size
+#ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
+#endif
+
+#ifndef SEGMENT_SIZE
 #define SEGMENT_SIZE 1024
+#endif
 
 #define _N_SEGMENT_ROUND(x) (((x) + SEGMENT_SIZE - 1) & ~(SEGMENT_SIZE - 1))
 
@@ -216,5 +225,3 @@ struct relocation_info
 };
 #endif /* no N_RELOCATION_INFO_DECLARED.  */
 
-
-#endif /* __A_OUT_GNU_H__ */

@@ -209,7 +209,7 @@ timer_interrupt:
 	movw %ax, %ds
 	movw %ax, %es
 	movl $0x17, %eax
-	mov %ax, %fs
+	movw %ax, %fs
 	incl jiffies
 	movb $0x20, %al		# EOI to interrupt controller #1
 	outb %al,$0x20

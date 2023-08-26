@@ -134,18 +134,17 @@ int free_page_tables(unsigned long from, unsigned long size)
 {
     if (from & 0x3fffff) panic("free_page_tables called with wrong alignment");
     if (!from) panic("Trying to free up swapper memory space");
-
+    //////////////////////////////////////////////////////////////////////////
     size = (size + 0x3fffff) >> 22; // the nr of 4Mb blocks need to be freed
     unsigned long* dir = (unsigned long*) ((from>>20) & 0xffc); 
-    while (size-- > 0) 
-    {           
+    while (size-- > 0) {           
         if (!(1 & *dir)) {
             ++dir;
             continue;
         }
-        
+        /****************************************************/
         unsigned long* pg_table = (unsigned long*) (0xfffff000 & *dir);
-        for (register int nr = 0; nr < 1024; ++nr) 
+        for (int nr = 0; nr < 1024; ++nr) 
         {   // test P bit 
             if (1 & *pg_table) free_page(0xfffff000 & *pg_table);
             *(pg_table++) = 0;  // [MOD] by Henry
@@ -153,7 +152,7 @@ int free_page_tables(unsigned long from, unsigned long size)
         free_page(0xfffff000 & *dir);   // free the page TABLE
         *(dir++) = 0; 
     }
-
+    //////////////////////////////////////////////////////////////////////////
     invalidate(); // invalidate the cr3
     return 0;
 }
@@ -235,29 +234,29 @@ int copy_page_tables(unsigned long from, unsigned long to, unsigned long size)
  * out of memory (either when trying to access page-table or
  * page.)
  */
-// map an address to a physical page
-unsigned long put_page(unsigned long page,unsigned long address)
+// map a linear address to a physical page
+unsigned long put_page(unsigned long page, unsigned long address)
 {
-    unsigned long tmp, *page_table;
-
     /* NOTE !!! This uses the fact that _pg_dir=0 */
-
     if (page < LOW_MEM || page >= HIGH_MEMORY)
         printk("Trying to put page %p at %p\n",page,address);
     if (mem_map[(page-LOW_MEM)>>12] != 1)
         printk("mem_map disagrees with %p at %p\n",page,address);
-    
-    page_table = (unsigned long *) ((address>>20) & 0xffc); // page dir offset
+    /////////////////////////////////////////////////////////////////////////
+    unsigned long* page_table = (unsigned long*) ((address >> 20) & 0xffc); 
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     if ((*page_table) & 1) // P=1, then "page_table" get the page table address
-        page_table = (unsigned long *) (0xfffff000 & *page_table);
+        page_table = (unsigned long*) (0xfffff000 & *page_table);
     else {
-        if (!(tmp=get_free_page())) // get a free page for page table
-            return 0;
-        *page_table = tmp|7; // set page dir entry and  U/S, R/W, P bits
-        page_table = (unsigned long *) tmp; // get page table 
+        unsigned long tmp = get_free_page();
+        if (!tmp) return 0;
+        //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        *page_table = tmp | 7; // set page dir entry and  U/S, R/W, P bits
+        page_table = (unsigned long*) tmp; // get page table 
     }
+    /***********************************************************************/
     // mask 0x3ff keeps the index within the bound of 10bits
-    page_table[(address>>12) & 0x3ff] = page | 7; 
+    page_table[(address >> 12) & 0x3ff] = page | 7; 
     /* no need for invalidate */
     return page;
 }

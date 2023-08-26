@@ -85,100 +85,6 @@ static struct hd_struct {
 extern void hd_interrupt(void);
 extern void rd_load(void);
 
-/* This may be used only once, enforced by 'static int callable' */
-int sys_setup(void* BIOS)
-{
-    static int callable = 1;
-    
-    if (!callable) return -1;   // only allow to call once
-    callable = 0;
-#ifndef HD_TYPE
-    // if no pre-configured, read from drive_info
-    for (int drive = 0; drive < 2; ++drive) {
-        hd_info[drive].cyl = *(unsigned short*) BIOS;
-        hd_info[drive].head = *(unsigned char*) (2+BIOS);
-        hd_info[drive].wpcom = *(unsigned short*) (5+BIOS);
-        hd_info[drive].ctl = *(unsigned char*) (8+BIOS);
-        hd_info[drive].lzone = *(unsigned short*) (12+BIOS);
-        hd_info[drive].sect = *(unsigned char*) (14+BIOS);
-        BIOS += 16;
-    }
-
-    NR_HD = hd_info[1].cyl ? 2 : 1;
-    printk("Numbers of Hard Disks: %d\n\n", NR_HD);
-#endif
-    // calculate hd[0], hd[5]
-    for (int i = 0; i < NR_HD; ++i) {
-        hd[i*5].start_sect = 0;
-        hd[i*5].nr_sects = hd_info[i].head * hd_info[i].sect * hd_info[i].cyl;
-    }
-
-    /*
-       We querry CMOS about hard disks : it could be that 
-       we have a SCSI/ESDI/etc controller that is BIOS
-       compatable with ST-506, and thus showing up in our
-       BIOS table, but not register compatable, and therefore
-       not present in CMOS.
-        
-       Furthurmore, we will assume that our ST-506 drives
-       <if any> are the primary drives in the system, and 
-       the ones reflected as drive 1 or 2.
-        
-       The first drive is stored in the high nibble of CMOS
-       byte 0x12, the second in the low nibble.  This will be
-       either a 4 bit drive type or 0xf indicating use byte 0x19 
-       for an 8 bit type, drive 1, 0x1a for drive 2 in CMOS.
-        
-       Needless to say, a non-zero value means we have 
-       an AT controller hard disk for that drive.
-    */
-
-    // the 1st hd must be AT comptible, otherwise whether the
-    // 2nd is or not is meaningless.
-    unsigned char cmos_disks = CMOS_READ(0x12);
-    if (cmos_disks & 0xf0)
-        NR_HD = (cmos_disks & 0x0f) ? 2 : 1;
-    else
-        NR_HD = 0; 
-    // clear the info if necessary
-	for (int i = NR_HD; i < MAX_HD; ++i) {
-        hd[i*5].start_sect = 0;
-        hd[i*5].nr_sects = 0;
-	}
-
-	for (int drive = 0; drive < NR_HD; ++drive) {
-        // check https://en.wikipedia.org/wiki/Master_boot_record
-        struct buffer_head* bh = bread(0x300 + drive*5, 0); // read boot block
-        if (!bh) {
-            printk("Unable to read partition table of drive %d\n", drive);
-            panic("");
-        }
-        //////////////////////////////////////////////////////////////////////
-        // check magic number of the boot sector
-        if (bh->b_data[510] != 0x55 || 
-            ((unsigned char) bh->b_data[511]) != 0xAA) 
-        {
-            printk("Bad partition table on drive %d\n",drive);
-            panic("");
-        }
-        //////////////////////////////////////////////////////////////////////
-        // read the partition table
-        struct partition* p = 0x1BE + (void*) bh->b_data;
-        for (int i = 1; i < 5; ++i, ++p) {
-            hd[i+5*drive].start_sect = p->start_sect;
-            hd[i+5*drive].nr_sects = p->nr_sects;
-        }
-        brelse(bh);
-    }
-    printk("Partition table%s ok.\n", (NR_HD>1)?"s":"");
-    //////////////////////////////////////////////////////////////////////////
-    rd_load();      // load ramdisk: TO-READ, skip it for now
-    //////////////////////////////////////////////////////////////////////////
-    mount_root();
-    //////////////////////////////////////////////////////////////////////////
-    return (0);
-}
-
 static int controller_ready(void)
 {
 	int retries=100000;
@@ -255,11 +161,6 @@ static void reset_hd(int nr)
 		hd_info[nr].cyl,WIN_SPECIFY,&recal_intr);
 }
 
-void unexpected_hd_interrupt(void)
-{
-	printk("Unexpected HD interrupt\n\r");
-}
-
 static void bad_rw_intr(void)
 {
 	if (++CURRENT->errors >= MAX_ERRORS)
@@ -310,6 +211,109 @@ static void recal_intr(void)
 	if (win_result())
 		bad_rw_intr();
 	do_hd_request();
+}
+
+/*
+ **************************** INTERFACE **************************************
+ */
+
+/* This may be used only once, enforced by 'static int callable' */
+int sys_setup(void* BIOS)
+{
+    static int callable = 1;
+    if (!callable) return -1;   // only allow to call once
+    callable = 0;
+    /*#######################################################################*/
+#ifndef HD_TYPE
+    // if no pre-configured, read from drive_info
+    for (int drive = 0; drive < 2; ++drive) {
+        hd_info[drive].cyl = *(unsigned short*) BIOS;
+        hd_info[drive].head = *(unsigned char*) (2+BIOS);
+        hd_info[drive].wpcom = *(unsigned short*) (5+BIOS);
+        hd_info[drive].ctl = *(unsigned char*) (8+BIOS);
+        hd_info[drive].lzone = *(unsigned short*) (12+BIOS);
+        hd_info[drive].sect = *(unsigned char*) (14+BIOS);
+        BIOS += 16;
+    }
+    /***************************************************************/
+    NR_HD = hd_info[1].cyl ? 2 : 1;
+    printk("Numbers of Hard Disks: %d\n\n", NR_HD);
+#endif
+    // calculate hd[0], hd[5]
+    for (int i = 0; i < NR_HD; ++i) {
+        hd[i*5].start_sect = 0;
+        hd[i*5].nr_sects = hd_info[i].head * hd_info[i].sect * hd_info[i].cyl;
+    }
+    //////////////////////////////////////////////////////////////////////////
+    /*
+       We querry CMOS about hard disks : it could be that 
+       we have a SCSI/ESDI/etc controller that is BIOS
+       compatable with ST-506, and thus showing up in our
+       BIOS table, but not register compatable, and therefore
+       not present in CMOS.
+        
+       Furthurmore, we will assume that our ST-506 drives
+       <if any> are the primary drives in the system, and 
+       the ones reflected as drive 1 or 2.
+        
+       The first drive is stored in the high nibble of CMOS
+       byte 0x12, the second in the low nibble.  This will be
+       either a 4 bit drive type or 0xf indicating use byte 0x19 
+       for an 8 bit type, drive 1, 0x1a for drive 2 in CMOS.
+        
+       Needless to say, a non-zero value means we have 
+       an AT controller hard disk for that drive.
+    */
+    // the 1st hd must be AT comptible, otherwise whether the
+    // 2nd is or not is meaningless.
+    unsigned char cmos_disks = CMOS_READ(0x12);
+    if (cmos_disks & 0xf0)
+        NR_HD = (cmos_disks & 0x0f) ? 2 : 1;
+    else
+        NR_HD = 0; 
+    // clear the info if necessary
+	for (int i = NR_HD; i < MAX_HD; ++i) {
+        hd[i*5].start_sect = 0;
+        hd[i*5].nr_sects = 0;
+	}
+    //////////////////////////////////////////////////////////////////////////
+	for (int drive = 0; drive < NR_HD; ++drive) {
+        // check https://en.wikipedia.org/wiki/Master_boot_record
+        struct buffer_head* bh = bread(0x300 + drive*5, 0); // read boot block
+        if (!bh) {
+            printk("Unable to read partition table of drive %d\n", drive);
+            panic("");
+        }
+        /*******************************************************/
+        // check magic number of the boot sector
+        if (bh->b_data[510] != 0x55 || 
+            ((unsigned char) bh->b_data[511]) != 0xAA) 
+        {
+            printk("Bad partition table on drive %d\n",drive);
+            panic("");
+        }
+        /*******************************************************/
+        // read the partition table
+        struct partition* p = 0x1BE + (void*) bh->b_data;
+        for (int i = 1; i < 5; ++i, ++p) {
+            hd[i+5*drive].start_sect = p->start_sect;
+            hd[i+5*drive].nr_sects = p->nr_sects;
+        }
+        /*******************************************************/
+        brelse(bh);
+    }
+    printk("Partition table%s ok.\n", (NR_HD>1)?"s":"");
+    //////////////////////////////////////////////////////////////////////////
+    rd_load();      // load ramdisk: TO-READ, skip it for now
+    //////////////////////////////////////////////////////////////////////////
+    mount_root();
+    //////////////////////////////////////////////////////////////////////////
+    return (0);
+}
+
+void unexpected_hd_interrupt(void)
+{
+	printk("Unexpected HD interrupt\n\r");
 }
 
 void do_hd_request(void)
@@ -368,3 +372,4 @@ void hd_init(void)
 	outb_p(inb_p(0x21)&0xfb,0x21);
 	outb(inb_p(0xA1)&0xbf,0xA1);
 }
+
