@@ -78,14 +78,13 @@ static unsigned long* create_tables(char* p, int argc, int envc)
 /*
  * count() counts the number of arguments/envelopes
  */
-static int count(char ** argv)
+static int count(char** argv)
 {
-	int i=0;
-	char ** tmp;
-
-	if ((tmp = argv))
-		while (get_fs_long((unsigned long *) (tmp++)))
-			i++;
+	int i = 0;
+	char** tmp = argv;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+	if (tmp)
+		while (get_fs_long((unsigned long*) (tmp++))) i++;
 
 	return i;
 }
@@ -107,54 +106,64 @@ static int count(char ** argv)
  * it is expensive to load a segment register, we try to avoid calling
  * set_fs() unless we absolutely have to.
  */
-static unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
-		unsigned long p, int from_kmem)
+static unsigned long copy_strings(int argc, 
+                                  char** argv, 
+                                  unsigned long* page,
+                                  unsigned long p, 
+                                  int from_kmem)
 {
-	char *tmp, *pag=NULL;
-	int len, offset = 0;
-	unsigned long old_fs, new_fs;
-
-	if (!p)
-		return 0;	/* bullet-proofing */
-	new_fs = get_ds();
-	old_fs = get_fs();
-	if (from_kmem==2)
-		set_fs(new_fs);
-	while (argc-- > 0) {
-		if (from_kmem == 1)
-			set_fs(new_fs);
-		if (!(tmp = (char *)get_fs_long(((unsigned long *)argv)+argc)))
-			panic("argc is wrong");
-		if (from_kmem == 1)
-			set_fs(old_fs);
-		len=0;		/* remember zero-padding */
-		do {
-			len++;
-		} while (get_fs_byte(tmp++));
-		if (p-len < 0) {	/* this shouldn't happen - 128kB */
-			set_fs(old_fs);
-			return 0;
-		}
-		while (len) {
-			--p; --tmp; --len;
-			if (--offset < 0) {
-				offset = p % PAGE_SIZE;
-				if (from_kmem==2)
-					set_fs(old_fs);
-				if (!(pag = (char *) page[p/PAGE_SIZE]) &&
-				    !(pag = (char *) (page[p/PAGE_SIZE] =
-				      get_free_page()))) 
-					return 0;
-				if (from_kmem==2)
-					set_fs(new_fs);
-
-			}
-			*(pag + offset) = get_fs_byte(tmp);
-		}
-	}
-	if (from_kmem==2)
-		set_fs(old_fs);
-	return p;
+    if (!p) return 0;	/* bullet-proofing */
+    /*#######################################################################*/
+    char* pag=NULL;
+    int offset = 0;
+    unsigned long new_fs = get_ds();
+    unsigned long old_fs = get_fs();
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (from_kmem == 2) set_fs(new_fs);
+    /***************************************************************/
+    while (argc-- > 0) {
+        char* tmp;
+        /***************************************************************/
+        if (from_kmem)  // if from_kerm == 1, 2
+            tmp = argv[argc];
+        else
+            tmp = (char*) get_fs_long((const unsigned long *) &argv[argc]);
+        /***************************************************************/
+        if (!tmp) panic("argc is wrong");
+        /***************************************************************/
+        int len = 0;		/* remember zero-padding */
+        //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        do {
+            len++;
+        } while (get_fs_byte(tmp++));   // len == strlen(tmp) + 1
+        /***************************************************************/
+        if (p - len < 0) {	/* this shouldn't happen - 128kB */
+            set_fs(old_fs);
+            return 0;
+        }
+        //////////////////////////////////////////////////////////////////////
+        while (len) {
+            --p; --tmp; --len;
+            /***************************************************************/
+            if (--offset < 0) {
+                //offset = p % PAGE_SIZE;
+                offset = p & (PAGE_SIZE-1);
+                /***********************************************************/
+                if (!(pag = (char*) page[p/PAGE_SIZE]) &&
+                    !(pag = (char*) (page[p/PAGE_SIZE] = get_free_page())))
+                {
+                    if (from_kmem == 2) set_fs(old_fs);
+                    return 0;
+                }
+                /***********************************************************/
+            }
+            *(pag + offset) = get_fs_byte(tmp);
+        }
+    }
+    /***************************************************************/
+    if (from_kmem == 2) set_fs(old_fs);
+    /*#######################################################################*/
+    return p;
 }
 
 static unsigned long change_ldt(unsigned long text_size,unsigned long * page)
