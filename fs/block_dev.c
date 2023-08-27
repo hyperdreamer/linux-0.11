@@ -29,16 +29,17 @@ int block_write(int dev, long* pos, char* buf, int count)
         /***************************************************************/
         if (!bh) return (written ? written : -EIO);
         /***************************************************************/
-        offset = 0;
         *pos += chars;
         written += chars;
         count -= chars;
-        ++block;
         /***************************************************************/
         char* p = offset + bh->b_data;
         while (chars-- > 0) *(p++) = get_fs_byte(buf++);
         bh->b_dirt = 1;
         brelse(bh);
+        /***************************************************************/
+        offset = 0;
+        ++block;
     }
     //////////////////////////////////////////////////////////////////////////
     return written;
@@ -57,15 +58,16 @@ int block_read(int dev, unsigned long* pos, char* buf, int count)
         struct buffer_head* bh = breada(dev, block, block+1, block+2, -1);
         if (!bh) return (read ? read : -EIO);
         /***************************************************************/
-        offset = 0;
         *pos += chars;
         read += chars;
         count -= chars;
-        ++block;
         /***************************************************************/
         char* p = offset + bh->b_data;
         while (chars-- > 0) put_fs_byte(*(p++), buf++);
         brelse(bh);
+        /***************************************************************/
+        offset = 0;
+        ++block;
     }
     //////////////////////////////////////////////////////////////////////////
     return read;
