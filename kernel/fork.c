@@ -22,41 +22,26 @@ extern void write_verify(unsigned long address);
 
 static int last_pid = 0;
 
-void verify_area(void* addr, int size)
-{
-	laddr_t start = (laddr_t) addr;
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	size += start & PAGE_OFFSET_MASK;	
-	start &= PAGE_MASK;
-	start += get_base(current->ldt[2]);
-    //////////////////////////////////////////////////////////////////////////
-	while (size > 0) {
-		write_verify(start);
-		start += PAGE_SIZE;
-		size -= PAGE_SIZE;
-	}
-}
-
-int copy_mem(int nr, struct task_struct* p)
+static int copy_mem(int nr, struct task_struct* p)
 {
 	unsigned long old_data_base, new_data_base, data_limit;
 	unsigned long old_code_base, new_code_base, code_limit;
-
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	code_limit = get_limit(0x0f);  	// ldt[1]
     data_limit = get_limit(0x17);  	// ldt[2]
     old_code_base = get_base(current->ldt[1]); 	// no instruction loads base
 	old_data_base = get_base(current->ldt[2]); 	// directly
-
+    /***************************************************************/
 	if (old_data_base != old_code_base) 		// ensure code and data segment 
 		panic("We don't support separate I&D"); // overlap
 	if (data_limit < code_limit)	            // obvious data > code
 		panic("Bad data_limit");
-
+    /***************************************************************/
 	new_data_base = new_code_base = nr * 0x4000000;	 // nr * 64MB 
 	p->start_code = new_code_base;
-
     set_base(p->ldt[1], new_code_base);
     set_base(p->ldt[2], new_data_base);
+    /***************************************************************/
     if (copy_page_tables(old_data_base, new_data_base, data_limit)) 
     {
         printk("free_page_tables: from copy_mem\n");
@@ -64,6 +49,25 @@ int copy_mem(int nr, struct task_struct* p)
         return -ENOMEM;
     }
     return 0;
+}
+
+/*
+ **************************** INTERFACE **************************************
+ */
+
+void verify_area(void* addr, int size)
+{
+	laddr_t start = (laddr_t) addr;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	size += start & PAGE_OFFSET_MASK;	
+	start &= PAGE_MASK;
+	start += get_base(current->ldt[2]);
+    /***************************************************************/
+	while (size > 0) {
+		write_verify(start);
+		start += PAGE_SIZE;
+		size -= PAGE_SIZE;
+	}
 }
 
 /*
@@ -77,13 +81,9 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 {
 	struct task_struct* p = (struct task_struct *) get_free_page();
 	if (!p) return -EAGAIN;
-    //////////////////////////////////////////////////////////////////////////
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	task[nr] = p;
-    //* NOTE! this doesn't copy the supervisor stack */
-	*p = *current;
-    /*
-    copy_block((const char*) current, (char*) p, sizeof(struct task_struct));
-    */
+	*p = *current; //* NOTE! this doesn't copy the supervisor stack */
     //////////////////////////////////////////////////////////////////////////
     p->state = TASK_UNINTERRUPTIBLE;
 	p->pid = last_pid;
@@ -132,7 +132,7 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
     //////////////////////////////////////////////////////////////////////////
 	for (int i = 0; i < NR_OPEN; ++i) {
         struct file* f = p->filp[i];
-        if (f) ++(f->f_count);
+        if (f) f->f_count++;
     }
     //////////////////////////////////////////////////////////////////////////
 	if (current->pwd) current->pwd->i_count++;
@@ -146,7 +146,6 @@ int copy_process(int nr, long ebp, long edi, long esi, long gs, long none,
 	return p->pid;	 // the return of the sys_fork
 }
 
-// avoid the race condition
 int find_empty_process(void)
 {
 	register int i;
@@ -170,3 +169,4 @@ int find_empty_process(void)
     ////////////////////////////////////////////////////////////////        
     return -EAGAIN;
 }
+

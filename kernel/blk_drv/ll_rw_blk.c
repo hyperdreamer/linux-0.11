@@ -25,7 +25,7 @@ struct request request[NR_REQUEST] = {};
 /*
  * used to wait on when there are no free requests
  */
-struct task_struct * wait_for_request = NULL;
+struct task_struct* wait_for_request = NULL;
 
 /* blk_dev_struct is:
  *	do_request-address
@@ -123,10 +123,9 @@ static void make_request(int major, int rw, struct buffer_head* bh)
         if (bh->b_lock) return;
         rw = (rw == READA) ? READ : WRITE;
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     if (rw != READ && rw != WRITE)
         panic("Bad block dev command, must be R/W/RA/WA");
-    //////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////
     lock_buffer(bh);
     if ((rw == WRITE && !bh->b_dirt) || (rw == READ && bh->b_uptodate)) {
@@ -134,18 +133,19 @@ static void make_request(int major, int rw, struct buffer_head* bh)
         return;
     }
     //////////////////////////////////////////////////////////////////////////
-    /* we don't allow the write-requests to fill up the queue completely:
+repeat:
+/* 
+     * we don't allow the write-requests to fill up the queue completely:
      * we want some room for reads: they take precedence. The last third
      * of the requests are only for reads.
      */
-    struct request* req;
-repeat:
-    req = (rw == READ) ? request+NR_REQUEST : request+((NR_REQUEST*2)/3);
-    //////////////////////////////////////////////////////////////////////////
+    struct request* req = (rw == READ) ? request+NR_REQUEST 
+                                       : request+((NR_REQUEST*2)/3);
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     /* find an empty request */
     while (--req >= request) 
         if (req->dev < 0) break;
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     /* if none found, sleep on new requests: check for rw_ahead */
     if (req < request) {
         if (rw_ahead) {
@@ -155,7 +155,7 @@ repeat:
         sleep_on(&wait_for_request);
         goto repeat;
     }
-    //////////////////////////////////////////////////////////////////////////
+    /***************************************************************/
     /* fill up the request-info, and add it to the queue */
     req->dev = bh->b_dev;
     req->cmd = rw;
@@ -168,8 +168,6 @@ repeat:
     //req->next = NULL; // add_request will do this
     add_request(blk_dev + major, req);      // TO-READ
     // The buffer is still locked! Unlock in end_request()
-    //////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
 }
 
 void ll_rw_block(int rw, struct buffer_head* bh)
@@ -187,10 +185,14 @@ void ll_rw_block(int rw, struct buffer_head* bh)
 
 void blk_dev_init(void)
 {
-	int i;
-
-	for (i=0 ; i<NR_REQUEST ; i++) {
-		request[i].dev = -1;
-		request[i].next = NULL;
-	}
+    for (int i = 0; i < NR_REQUEST; ++i) {
+        request[i].dev = -1;
+        //request[i].next = NULL;
+#ifdef DEBUG
+        if (!request[i].next) {
+            printkc("ll_rw_blkc.c: request list not properly initialized!\n");
+            panic("ll_rw_blkc.c: request list not properly initialized!");
+        }
+#endif
+    }
 }

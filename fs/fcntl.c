@@ -29,7 +29,7 @@ static int dupfd(unsigned int fd, unsigned int arg)
     /***************************************************************/
     if (arg >= NR_OPEN) return -EMFILE;
     //////////////////////////////////////////////////////////////////////////
-    current->close_on_exec &= ~(1 << arg);      // ???
+    current->close_on_exec &= ~(1 << arg);
     (current->filp[arg] = current->filp[fd])->f_count++;
     return arg;
 }
@@ -46,7 +46,7 @@ int sys_dup(unsigned int fildes)
 }
 
 int sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
-{	
+{
     struct file* filp;
     if (fd >= NR_OPEN || !(filp = current->filp[fd])) return -EBADF;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 

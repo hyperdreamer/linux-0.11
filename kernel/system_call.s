@@ -52,8 +52,7 @@ sa_restorer = 12
  # instead of "push -- pop" by Henry
 .globl system_call, sys_fork, timer_interrupt, sys_execve
 .globl hd_interrupt, floppy_interrupt, parallel_interrupt
-.globl device_not_available, coprocessor_error, do_bad_syscall
-.global NR_syscalls
+.globl device_not_available, coprocessor_error
 
 #.align 2
 .p2align 2
@@ -212,7 +211,7 @@ timer_interrupt:
 	movw %ax, %fs
 	incl jiffies
 	movb $0x20, %al		# EOI to interrupt controller #1
-	outb %al,$0x20
+	outb %al, $0x20
 	movl CS(%esp), %eax
 	andl $3, %eax		# %eax is CPL (0 or 3, 0=supervisor)
 	pushl %eax

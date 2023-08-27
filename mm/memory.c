@@ -180,26 +180,26 @@ int copy_page_tables(unsigned long from, unsigned long to, unsigned long size)
     unsigned long* to_page_table;
     unsigned long* from_dir;
     unsigned long* to_dir;
-
+    /***************************************************************/
     if ((from & 0x3fffff) || (to & 0x3fffff)) // both on 4Mb boundary :-)
         panic("copy_page_tables called with wrong alignment");
-
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     from_dir = (unsigned long*) ((from>>20) & 0xffc); /* pg_dir = 0 */
     to_dir = (unsigned long*) ((to>>20) & 0xffc);
-    // nr of 4mb continuous block need to copy
+    // nr of page directory entries needs to copy
     for(size = ((unsigned long) (size+0x3fffff)) >> 22; 
         size-- >0;
         ++from_dir, ++to_dir) 
     {
         if (1 & *to_dir) panic("copy_page_tables: already exist");
-        
         if (!(1 & *from_dir)) continue;
-        
+        /***************************************************************/
         // source page table address
         from_page_table = (unsigned long*) (0xfffff000 & *from_dir);
         // get a new page for dest page table
         if (!(to_page_table = (unsigned long*) get_free_page()))
             return -1;	/* Out of memory, see freeing */
+        /***************************************************************/
         // u/s:1, user privilege level
         // r/w:1, read and write
         // p  :1, present now
@@ -211,7 +211,7 @@ int copy_page_tables(unsigned long from, unsigned long to, unsigned long size)
         {
             unsigned long this_page = *from_page_table;
             if (!(1 & this_page)) continue;
-            
+            /*******************************************************/
             this_page &= ~2; // clear R/W bit for sharing, read only
             *to_page_table = this_page; // copy the page table 
             if (this_page > LOW_MEM) 
@@ -262,24 +262,25 @@ unsigned long put_page(unsigned long page, unsigned long address)
 }
 
 // copy on write :-)
-void un_wp_page(unsigned long * table_entry)
+void un_wp_page(unsigned long* table_entry)
 {
-    unsigned long old_page,new_page;
-
-    old_page = 0xfffff000 & *table_entry;  // old page address
+    unsigned long old_page = 0xfffff000 & *table_entry;  // old page address
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     // mem_map[x]==1 indicates no sharing.
-    if (old_page >= LOW_MEM && mem_map[MAP_NR(old_page)]==1) { 
+    if (old_page >= LOW_MEM && mem_map[MAP_NR(old_page)] == 1) { 
         *table_entry |= 2; // set R/W to 1
         invalidate();
         return;
     }
+    //////////////////////////////////////////////////////////////////////////
     // if the page is shared, then copy it.
-    if (!(new_page=get_free_page())) // run out of memory :-(
-        oom();
-    if (old_page >= LOW_MEM)
-        mem_map[MAP_NR(old_page)]--; // remember to decrease the mem_map[x]
+    unsigned long new_page = get_free_page();
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!new_page) oom(); // run out of memory :-(
+    /***************************************************************/
+    if (old_page >= LOW_MEM) mem_map[MAP_NR(old_page)]--; 
     *table_entry = new_page | 7; // set U/S, R/W, P bits
-    
+    /***************************************************************/
     invalidate(); // refresh TLB
     copy_page(old_page,new_page); // copy page
 }	
@@ -291,7 +292,7 @@ void un_wp_page(unsigned long * table_entry)
  *
  * If it's in code space we exit with a segment error.
  */
-void do_wp_page(unsigned long error_code,unsigned long address)
+void do_wp_page(unsigned long error_code, unsigned long address)
 {
 #if 0
     /* we cannot do this yet: the estdio library writes to code space */
@@ -300,9 +301,9 @@ void do_wp_page(unsigned long error_code,unsigned long address)
         do_exit(SIGSEGV);
 #endif
     // get the table entry (offset + base address of table)
-    un_wp_page((unsigned long *)
+    un_wp_page((unsigned long*)
                (((address>>10) & 0xffc) // offset in page table
-                + (0xfffff000 & *((unsigned long *) ((address>>20) & 0xffc)))));
+                + (0xfffff000 & *((unsigned long*) ((address>>20) & 0xffc)))));
     // + base address of page table (stored in pg_dir)
 }
 
@@ -336,7 +337,7 @@ void get_empty_page(unsigned long address)
  * NOTE! This assumes we have checked that p != current, and that they
  * share the same executable.
  */
-static int try_to_share(unsigned long address, struct task_struct * p)
+static int try_to_share(unsigned long address, struct task_struct* p)
 {
     unsigned long from;
     unsigned long to;
@@ -394,58 +395,52 @@ static int try_to_share(unsigned long address, struct task_struct * p)
  */
 static int share_page(unsigned long address)
 {
-    struct task_struct ** p;
+    struct task_struct** p;
 
-    if (!current->executable)
-        return 0;
-    if (current->executable->i_count < 2)
-        return 0;
-    for (p = &LAST_TASK ; p > &FIRST_TASK ; --p) {
-        if (!*p)
-            continue;
-        if (current == *p)
-            continue;
-        if ((*p)->executable != current->executable)
-            continue;
-        if (try_to_share(address,*p))
-            return 1;
+    if (!current->executable) return 0;
+    if (current->executable->i_count < 2) return 0;
+    for (p = &LAST_TASK; p > &FIRST_TASK; --p) {
+        if (!*p) continue;
+        if (current == *p) continue;
+        if ((*p)->executable != current->executable) continue;
+        if (try_to_share(address, *p)) return 1;
     }
     return 0;
 }
 
 // the page wanted is not in memory
 // you need some file system knowledge to understand the function
-// currently i do not know its function :-(
-void do_no_page(unsigned long error_code,unsigned long address)
+void do_no_page(unsigned long error_code, unsigned long address)
 {
     int nr[4];
     unsigned long tmp;
     unsigned long page;
     int block,i;
-
-    address &= 0xfffff000;
+    /***************************************************************/
+    address &= PAGE_MASK;
     tmp = address - current->start_code;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (!current->executable || tmp >= current->end_data) {
         get_empty_page(address);
         return;
     }
-    if (share_page(tmp))
-        return;
-    if (!(page = get_free_page()))
-        oom();
+    //////////////////////////////////////////////////////////////////////////
+    if (share_page(tmp)) return;
+    if (!(page = get_free_page())) oom();
+    //////////////////////////////////////////////////////////////////////////
     /* remember that 1 block is used for header */
     block = 1 + tmp/BLOCK_SIZE;
-    for (i=0 ; i<4 ; block++,i++)
-        nr[i] = bmap(current->executable,block);
-    bread_page(page,current->executable->i_dev,nr);
-    i = tmp + 4096 - current->end_data;
-    tmp = page + 4096;
-    while (i-- > 0) {
-        tmp--;
-        *(char *)tmp = 0;
-    }
-    if (put_page(page,address))
-        return;
+    for (i = 0; i < 4; ++block, ++i)
+        nr[i] = bmap(current->executable, block);
+    /***************************************************************/
+    bread_page(page, current->executable->i_dev, nr);
+    //////////////////////////////////////////////////////////////////////////
+    i = tmp + PAGE_SIZE - current->end_data; // if i > 0, then land on .bss   
+    tmp = page + PAGE_SIZE;
+    while (i-- > 0) // .bss must be zero out
+        *(char*) (--tmp) = 0;   
+    /***************************************************************/
+    if (put_page(page, address)) return;
     free_page(page);
     oom();
 }

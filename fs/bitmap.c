@@ -258,10 +258,10 @@ void free_inode(struct m_inode* inode)
 	struct super_block* sb = get_super(inode->i_dev);
 	if (!sb) panic("trying to free inode on nonexistent device");
 	if (inr > sb->s_ninodes) panic("trying to nonexistant inode");
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    /***************************************************************/
 	struct buffer_head* bh = sb->s_imap[IMAP_INDX(inr)];
 	if (!bh) panic("nonexistent imap in superblock");
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    /***************************************************************/
 	if (clear_bit(inr & BLCK_MASK, bh->b_data))
 		printk("free_inode: bit already cleared.\n\r");
     /***************************************************************/

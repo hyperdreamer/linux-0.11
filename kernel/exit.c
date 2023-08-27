@@ -115,17 +115,18 @@ volatile int do_exit(long code)
     free_page_tables(get_base(current->ldt[1]), get_limit(0x0f));
     free_page_tables(get_base(current->ldt[2]), get_limit(0x17));
     ////////////////////////////////////////////////////  
-    for (int i = 0; i < NR_TASKS; ++i)
+    int i;
+    for (i = 0; i < NR_TASKS; ++i)
         if (task[i] && task[i]->father == current->pid) 
         {
             task[i]->father = 1;
             /* assumption task[1] is always init */
-            // tell task[1] to do some cleanup if necessary
+            // tell process 1 to do some cleanup if necessary
             if (task[i]->state == TASK_ZOMBIE)
                 (void) send_sig(SIGCHLD, task[1], 1);
         }
     ////////////////////////////////////////////////////  
-    for (int i = 0; i < NR_OPEN; ++i)   // close all open files
+    for (i = 0; i < NR_OPEN; ++i)   // close all open files
         if (current->filp[i]) sys_close(i); // TO_READ
     iput(current->pwd); //TO_READ
     current->pwd = NULL;
@@ -134,7 +135,7 @@ volatile int do_exit(long code)
     iput(current->executable);
     current->executable = NULL;
     ///////////////////////////////////////////////////
-    if (current->leader && current->tty >= 0) tty_table[current->tty].pgrp=0;
+    if (current->leader && current->tty >= 0) tty_table[current->tty].pgrp = 0;
     if (last_task_used_math == current) last_task_used_math = NULL;
     if (current->leader) kill_session();
     ///////////////////////////////////////////////////
@@ -159,11 +160,11 @@ int sys_waitpid(pid_t pid, unsigned long* stat_addr, int options)
 {
     do {
         int flag = 0;
-        
+        //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         for (struct task_struct** p = &LAST_TASK; p > &FIRST_TASK; --p) {
             if (!*p || *p == current) continue;
-            
             if ((*p)->father != current->pid) continue;
+            /***************************************************************/
             // now p is a child of current
             if (pid > 0) {  // for specific pid
                 if ((*p)->pid != pid) continue;
@@ -174,6 +175,7 @@ int sys_waitpid(pid_t pid, unsigned long* stat_addr, int options)
             else if (pid != -1) {   // pid < -1: for specific group
                 if ((*p)->pgrp != -pid) continue;
             }
+            /***************************************************************/
             // pid == -1: for all children
             switch ((*p)->state) {
             case TASK_STOPPED:
@@ -181,7 +183,6 @@ int sys_waitpid(pid_t pid, unsigned long* stat_addr, int options)
                 verify_area(stat_addr, 4);
                 put_fs_long(0x7f, stat_addr);
                 return (*p)->pid;
-             
             case TASK_ZOMBIE:
                 current->cutime += (*p)->utime;
                 current->cstime += (*p)->stime;
@@ -192,21 +193,21 @@ int sys_waitpid(pid_t pid, unsigned long* stat_addr, int options)
                 verify_area(stat_addr, 4);
                 put_fs_long(code, stat_addr);
                 return flag;
-             
             default:
                 flag = 1;
                 continue;
             }
         }
-        
+        //////////////////////////////////////////////////////////////////////////
         if (!flag) return -ECHILD;  // No WUNTRACED may trigger this
-        
         if (options & WNOHANG) return 0;
+        //////////////////////////////////////////////////////////////////////////
         // if no WHNOAHG, always wait for the next hangup
         current->state = TASK_INTERRUPTIBLE;
         schedule();
+        //////////////////////////////////////////////////////////////////////////
         // if current recieves non-SIGCHLD
-        if ((current->signal &= ~(1<<(SIGCHLD-1))))
-            return -EINTR;
+        if ((current->signal &= ~(1<<(SIGCHLD-1)))) return -EINTR;
     } while (true);
 }
+

@@ -146,13 +146,12 @@ int sys_chown(const char* filename, int uid, int gid)
 	return 0;
 }
 
-int sys_open(const char* filename, int flag, int mode)
+int sys_open(const char* filename, int flag, int mode)  // mode is for create
 {
     int fd;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     for(fd = 0; fd < NR_OPEN; ++fd)     // find the first NULL flip
         if (!current->filp[fd]) break;
-    /***************************************************************/
     if (fd >= NR_OPEN) return -EINVAL;  // no NULL flip
     /***************************************************************/
     current->close_on_exec &= ~(1 << fd);
@@ -162,7 +161,6 @@ int sys_open(const char* filename, int flag, int mode)
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     for (i = 0; i < NR_FILE; ++i, ++f)  // find the first empty slot 
         if (! f->f_count) break;        // in the file_table
-    /***************************************************************/
     if (i >= NR_FILE) return -EINVAL;   // no empty slot
     /***************************************************************/
     (current->filp[fd] = f)->f_count++; // searching done!!!
@@ -217,7 +215,7 @@ int sys_close(unsigned int fd)
 {	
 
 	if (fd >= NR_OPEN) return -EINVAL;
-    /***************************************************************/
+    //////////////////////////////////////////////////////////////////////////
 	current->close_on_exec &= ~(1 << fd);
     /***************************************************************/
 	struct file* filp = current->filp[fd];
@@ -227,7 +225,7 @@ int sys_close(unsigned int fd)
     /***************************************************************/
 	if (filp->f_count == 0) panic("Close: file count is 0");
 	if (-- filp->f_count) return 0; // if someone else is using it
+    //////////////////////////////////////////////////////////////////////////
 	iput(filp->f_inode);            // if no one is using it
-    /***************************************************************/
 	return 0;
 }

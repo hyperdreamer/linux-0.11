@@ -119,32 +119,48 @@ static inline void unlock_buffer(struct buffer_head* bh)
 
 static inline void end_request(int uptodate)
 {
-	DEVICE_OFF(CURRENT->dev);
-	if (CURRENT->bh) {
-		CURRENT->bh->b_uptodate = uptodate;
-		unlock_buffer(CURRENT->bh);
-	}
-	if (!uptodate) {
-		printk(DEVICE_NAME " I/O error\n\r");
-		printk("dev %04x, block %d\n\r",CURRENT->dev,
-			CURRENT->bh->b_blocknr);
-	}
-	wake_up(&CURRENT->waiting);
-	wake_up(&wait_for_request);
-	CURRENT->dev = -1;
-	CURRENT = CURRENT->next;
+    DEVICE_OFF(CURRENT->dev);   // only for floppy drives
+    /***************************************************************/
+    if (CURRENT->bh) {
+        CURRENT->bh->b_uptodate = uptodate;
+        unlock_buffer(CURRENT->bh);
+    }
+    /***************************************************************/
+    if (!uptodate) {
+        printk(DEVICE_NAME " I/O error\n\r");
+        printk("dev %04x, block %d\n\r",CURRENT->dev,
+               CURRENT->bh->b_blocknr);
+    }
+    //////////////////////////////////////////////////////////////////////////
+    wake_up(&CURRENT->waiting);
+    wake_up(&wait_for_request);
+    /***************************************************************/
+    CURRENT->dev = -1;          // reset the reuest list
+    CURRENT = CURRENT->next;    // move to the next request
 }
 
 #define INIT_REQUEST \
 repeat: \
-	if (!CURRENT) \
-		return; \
+	if (!CURRENT) return; \
 	if (MAJOR(CURRENT->dev) != MAJOR_NR) \
 		panic(DEVICE_NAME ": request list destroyed"); \
 	if (CURRENT->bh) { \
 		if (!CURRENT->bh->b_lock) \
 			panic(DEVICE_NAME ": block not locked"); \
 	}
+
+static inline bool init_request()
+{
+    if (!CURRENT) return false;
+    /***************************************************************/
+    if (MAJOR(CURRENT->dev) != MAJOR_NR)
+        panic(DEVICE_NAME ": request list destroyed");
+    /***************************************************************/
+    if (CURRENT->bh && !CURRENT->bh->b_lock)
+        panic(DEVICE_NAME ": block not locked");
+
+    return true;
+}
 
 #endif
 

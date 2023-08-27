@@ -6,8 +6,7 @@
  * offsets into 'tty_queue'
  */
 
-#ifndef _TTY_H
-#define _TTY_H
+#pragma once
 
 #include <termios.h>
 
@@ -17,7 +16,7 @@ struct tty_queue {
 	unsigned long data;
 	unsigned long head;
 	unsigned long tail;
-	struct task_struct * proc_list;
+	struct task_struct* proc_list;
 	char buf[TTY_BUF_SIZE];
 };
 
@@ -28,10 +27,18 @@ struct tty_queue {
 #define LAST(a) ((a).buf[(TTY_BUF_SIZE-1)&((a).head-1)])
 #define FULL(a) (!LEFT(a))
 #define CHARS(a) (((a).head-(a).tail)&(TTY_BUF_SIZE-1))
-#define GETCH(queue,c) \
-(void)({c=(queue).buf[(queue).tail];INC((queue).tail);})
-#define PUTCH(c,queue) \
-(void)({(queue).buf[(queue).head]=(c);INC((queue).head);})
+
+#define GETCH(queue, c) \
+(void) ({ \
+            c = (queue).buf[(queue).tail]; \
+            INC((queue).tail); \
+        })
+
+#define PUTCH(c, queue) \
+(void) ({ \
+            (queue).buf[(queue).head] = (c); \
+            INC((queue).head); \
+        })
 
 #define INTR_CHAR(tty) ((tty)->termios.c_cc[VINTR])
 #define QUIT_CHAR(tty) ((tty)->termios.c_cc[VQUIT])
@@ -46,11 +53,11 @@ struct tty_struct {
 	struct termios termios;
 	int pgrp;
 	int stopped;
-	void (*write)(struct tty_struct * tty);
+	void (*write)(struct tty_struct* tty);
 	struct tty_queue read_q;
 	struct tty_queue write_q;
 	struct tty_queue secondary;
-	};
+};
 
 extern struct tty_struct tty_table[];
 
@@ -74,4 +81,3 @@ void con_write(struct tty_struct * tty);
 
 void copy_to_cooked(struct tty_struct * tty);
 
-#endif

@@ -50,43 +50,34 @@ static inline void get_new(char* from, char* to)
 
 int sys_signal(int signum, long handler, long restorer)
 {
-	static struct sigaction tmp;
-
 	if (signum<1 || signum>32 || signum==SIGKILL) return -1;
-
+    //////////////////////////////////////////////////////////////////////////
+	struct sigaction tmp;
 	tmp.sa_handler = (void (*)(int)) handler;
 	tmp.sa_mask = 0;
 	tmp.sa_flags = SA_ONESHOT | SA_NOMASK;
 	tmp.sa_restorer = (void (*)(void)) restorer;
+    /***************************************************************/
 	handler = (long) current->sigaction[signum-1].sa_handler;
 	current->sigaction[signum-1] = tmp;
-    
-	return handler;
+    //////////////////////////////////////////////////////////////////////////
+	return handler; // return the old handler
 }
 
-int sys_sigaction(int signum, const struct sigaction* action,
+int sys_sigaction(int signum, 
+                  const struct sigaction* action,
                   struct sigaction* oldaction)
 {
-	static struct sigaction tmp;
-    static size_t size = sizeof(struct sigaction);
-
-	if (signum<1 || signum>32 || signum==SIGKILL) return -1;
-    
-	tmp = current->sigaction[signum-1];
-    /*
-	get_new((char*) action,
-            (char*) (signum-1 + current->sigaction));
-    */
+	if (signum < 1 || signum > 32 || signum == SIGKILL) return -1;
+    //////////////////////////////////////////////////////////////////////////
+	struct sigaction tmp = current->sigaction[signum-1];
+    /***************************************************************/
     copy_block_fs2es((const char*) action,
                      (char*) (signum-1 + current->sigaction),
-                     size);
-
-	if (oldaction) {
-        verify_area((char*) oldaction, size);   // verfiy %fs space
-        copy_block_ds2fs((const char*) &tmp, (char*) oldaction, size);
-	    //save_old((char *) &tmp,(char *) oldaction);
-    }
-
+                     sizeof(struct sigaction));
+    /***************************************************************/
+	if (oldaction) copy_to_user(&tmp, oldaction, struct sigaction);
+    //////////////////////////////////////////////////////////////////////////
 	if (current->sigaction[signum-1].sa_flags & SA_NOMASK)
 		current->sigaction[signum-1].sa_mask = 0;
 	else
@@ -99,38 +90,38 @@ void do_signal(long signr, long eax, long ebx, long ecx, long edx,
                long fs, long es, long ds, long eip, long cs, long eflags,
                unsigned long* esp, long ss)
 {
-	unsigned long sa_handler;
-	long old_eip = eip;
-	struct sigaction* sa = current->sigaction + signr-1;	// get signaction
-	int longs;
-	unsigned long* tmp_esp;
+    unsigned long sa_handler;
+    long old_eip = eip;
+    struct sigaction* sa = current->sigaction + signr-1;	// get signaction
+    int longs;
+    unsigned long* tmp_esp;
 
-	sa_handler = (unsigned long) sa->sa_handler;
-	if (sa_handler == 1) return;    // SIG_IGN
+    sa_handler = (unsigned long) sa->sa_handler;
+    if (sa_handler == 1) return;    // SIG_IGN
 
-	if (!sa_handler) {  // SIG_DEL
+    if (!sa_handler) {  // SIG_DFL
         if (signr == SIGCHLD) return;
-
+        /********************************************************/
         do_exit(1<<(signr-1));
-	}
+    }
 
-	if (sa->sa_flags & SA_ONESHOT) sa->sa_handler = NULL;
+    if (sa->sa_flags & SA_ONESHOT) sa->sa_handler = NULL;
 
-	*(&eip) = sa_handler;	// signal process handler
-	longs = (sa->sa_flags & SA_NOMASK) ? 7 : 8;
-	*(&esp) -= longs;
-	verify_area(esp, longs*4);	// copy on write
-	tmp_esp = esp;
-	put_fs_long((long) sa->sa_restorer, tmp_esp++);	// push restorer into user stack
-	put_fs_long(signr, tmp_esp++);		// push signal value
-	if (!(sa->sa_flags & SA_NOMASK)) 	// if none mask then push block signal value
-		put_fs_long(current->blocked, tmp_esp++);
-	put_fs_long(eax, tmp_esp++);			// push registers
-	put_fs_long(ecx, tmp_esp++);
-	put_fs_long(edx, tmp_esp++);
-	put_fs_long(eflags, tmp_esp++);
-	put_fs_long(old_eip, tmp_esp++);
-	current->blocked |= sa->sa_mask;	// mask current processed signal
+    *(&eip) = sa_handler;	// signal process handler
+    longs = (sa->sa_flags & SA_NOMASK) ? 7 : 8;
+    *(&esp) -= longs;
+    verify_area(esp, longs*4);	// copy on write
+    tmp_esp = esp;
+    put_fs_long((long) sa->sa_restorer, tmp_esp++);	// push restorer into user stack
+    put_fs_long(signr, tmp_esp++);		// push signal value
+    if (!(sa->sa_flags & SA_NOMASK)) 	// if none mask then push block signal value
+        put_fs_long(current->blocked, tmp_esp++);
+    put_fs_long(eax, tmp_esp++);			// push registers
+    put_fs_long(ecx, tmp_esp++);
+    put_fs_long(edx, tmp_esp++);
+    put_fs_long(eflags, tmp_esp++);
+    put_fs_long(old_eip, tmp_esp++);
+    current->blocked |= sa->sa_mask;	// mask current processed signal
 }
 
 int sys_sigpending(sigset_t *set)

@@ -49,6 +49,7 @@ inline _syscall0(int, sync)
 static char printbuf[1024];
 
 extern int printk(const char* fmt, ...);
+extern int printkc(const char* fmt, ...);
 extern int vsprintf(char* buf, const char* fmt, va_list args);
 extern void init(void);
 extern void blk_dev_init(void);
@@ -144,16 +145,16 @@ void main(void)     /* This really IS void, no error here. */
     ///////////////////////////////////////////////////////////////////////////
     trap_init();
     ///////////////////////////////////////////////////////////////////////////
-    blk_dev_init();     // TO_READ
-    chr_dev_init();     // TO_READ
-    tty_init();         // TO_READ
+    blk_dev_init();
+    chr_dev_init();
+    tty_init();
     ///////////////////////////////////////////////////////////////////////////
     time_init();
     ///////////////////////////////////////////////////////////////////////////
     sched_init();       /* system calls are initiated here */
     ///////////////////////////////////////////////////////////////////////////
     buffer_init(buffer_memory_end); 
-    hd_init();          // TO_READ
+    hd_init();
     floppy_init();      // TO_READ
     ///////////////////////////////////////////////////////////////////////////
     sti();  /* enable interrupts */
@@ -185,54 +186,68 @@ int printf(const char *fmt, ...)
     return i;
 }
 
-static char * argv_rc[] = { "/bin/sh", NULL };
-static char * envp_rc[] = { "HOME=/", NULL };
+static char* argv_rc[] = { "/bin/sh", NULL };
+static char* envp_rc[] = { "HOME=/", NULL };
 
-static char * argv[] = { "-/bin/sh",NULL };
-static char * envp[] = { "HOME=/usr/root", NULL };
+static char* argv[] = { "-/bin/sh", NULL };
+static char* envp[] = { "HOME=/root", NULL };
 
 void init() // run by process 1
 {
-    int pid, i;
     setup((void*) &drive_info);
-    (void) open("/dev/tty0",O_RDWR,0);
-    (void) dup(0);	// system call sys_dup
-    (void) dup(0);
+    (void) open("/dev/tty0", O_RDWR, 0);    // filp[0]
+    (void) dup(0);	// dup.c, filp[1]
+    (void) dup(0);  // filp[2]
     printf("%d buffers = %d bytes buffer space\n\r", 
            NR_BUFFERS,
-           NR_BUFFERS*BLOCK_SIZE);
+           NR_BUFFERS * BLOCK_SIZE);
     printf("Free mem: %d bytes\n\r", memory_end - main_memory_start);
-
-   if (!(pid=fork())) {
-        /* child process */
-        close(0);		// system call sys_close
-        if (open("/etc/rc",O_RDONLY,0))
-            _exit(1);
-        execve("/bin/sh",argv_rc,envp_rc);
+    //////////////////////////////////////////////////////////////////////////
+    int pid = 0;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    if (!(pid = fork())) { /* child process of process 1: process 2 */
+        close(0);   // close.c, sys_close(), close filp[0]	
+        if (open("/etc/rc", O_RDONLY, 0)) _exit(1); // filp[0]
+        execve("/bin/sh", argv_rc, envp_rc);    // execve.c, sys_execve()
         _exit(2);
+        // NOTE!!! /etc/rc runs a script name /etc/update in the background
+        // and that's the process 3. I don't know what's that script for?
+        // (You can comment it out, and the next process will start
+        // at 3 not 4.) by Henry
     }
-    if (pid>0)
-        while (pid != wait(&i))
-            /* nothing */;
+    //////////////////////////////////////////////////////////////////////////
+    int i;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+    while (pid != wait(&i)) /* nothing */; 
+    // until process 2 is ZOMBIE 
+    // i will the be the exit code of process 2
+#ifdef DEBUG
+    printf("\nchild %d died with code %04x\n", pid, i);
+#endif
+    /***************************************************************/
     do {
-        if ((pid=fork())<0) {
-            printf("Fork failed in init\r\n");
+        if ((pid = fork()) < 0) {
+            printf("Fork failed in init\n");
             continue;
         }
-        if (!pid) {
-            close(0);close(1);close(2);
-            setsid();
-            (void) open("/dev/tty0",O_RDWR,0);
+        /*****************************************************/
+        if (!pid) { // child process of process 1: process N (4..)
+            close(0); close(1); close(2);   // close all tty filp
+            setsid();   // setsid.c: sys_setsid()
+            (void) open("/dev/tty0", O_RDWR, 0);
             (void) dup(0);
             (void) dup(0);
-            _exit(execve("/bin/sh",argv,envp));
+            _exit(execve("/bin/sh", argv, envp));   // login shell
         }
-        
-        do {
-            if (pid == wait(&i)) break;
-        } while (true);
-        printf("\n\rchild %d died with code %04x\n\r", pid, i);
+        /*****************************************************/
+        while (pid != wait(&i)) /* nothing */;
+        // until process N is ZOMBIE
+        // i will the be the exit code of process N
+        /*****************************************************/
+        printf("\nchild %d died with code %04x\n", pid, i);
         sync();
-    } while (true);
+    } while (true); // login shell forever :-)
+    //////////////////////////////////////////////////////////////////////////
     _exit(0);   /* NOTE! _exit, not exit() */
 }
+
