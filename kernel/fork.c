@@ -24,16 +24,16 @@ static int last_pid = 0;
 
 void verify_area(void* addr, int size)
 {
-	laddr_t start;
-
-	start = (laddr_t) addr;
-	size += start & 0xfff;	
-	start &= 0xfffff000;
+	laddr_t start = (laddr_t) addr;
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	size += start & PAGE_OFFSET_MASK;	
+	start &= PAGE_MASK;
 	start += get_base(current->ldt[2]);
+    //////////////////////////////////////////////////////////////////////////
 	while (size > 0) {
-		size -= 4096;
 		write_verify(start);
-		start += 4096;
+		start += PAGE_SIZE;
+		size -= PAGE_SIZE;
 	}
 }
 
