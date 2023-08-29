@@ -133,12 +133,7 @@ static struct buffer_head* add_entry(struct m_inode* dir,
         }
         //////////////////////////////////////////////////////////////////////
         if (i * sizeof(struct dir_entry) >= dir->i_size) {
-#ifdef DEBUG
-            if (de->inode) {
-                printkc("add_entry: new entry with non-zero inode!\n");
-                panic("add_entry: new entry with non-zero inode!");
-            }
-#endif
+			de->inode = 0;
             dir->i_size = (i+1)*sizeof(struct dir_entry);
             dir->i_ctime = CURRENT_TIME;    // essential for size change
             dir->i_dirt = 1;

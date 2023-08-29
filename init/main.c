@@ -218,7 +218,7 @@ void init() // run by process 1
     //////////////////////////////////////////////////////////////////////////
     int i;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-    while (pid != wait(&i)) /* nothing */; 
+    if (pid > 0) while (pid != wait(&i)) /* nothing */; 
     // until process 2 is ZOMBIE 
     // i will the be the exit code of process 2
 #ifdef DEBUG
@@ -240,7 +240,7 @@ void init() // run by process 1
             _exit(execve("/bin/sh", argv, envp));   // login shell
         }
         /*****************************************************/
-        while (pid != wait(&i)) /* nothing */;
+        while (pid != wait(&i)) /* nothing */; 
         // until process N is ZOMBIE
         // i will the be the exit code of process N
         /*****************************************************/
