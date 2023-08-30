@@ -188,7 +188,7 @@ int sys_open(const char* filename, int flag, int mode)  // mode is for create
             if (current->tty < 0) { // do clean-up
                 iput(inode);
                 current->filp[fd] = NULL;
-                f->f_count=0;
+                f->f_count = 0;
                 return -EPERM;
             }
         }

@@ -106,7 +106,7 @@ int sys_write(unsigned int fd, char* buf, int count)
         return (file->f_mode & 2) ? write_pipe(inode,buf,count) : -EIO;
 
     if (S_ISCHR(inode->i_mode))
-        return rw_char(WRITE, inode->i_zone[0], buf,count, &file->f_pos);
+        return rw_char(WRITE, inode->i_zone[0], buf, count, &file->f_pos);
 
     if (S_ISBLK(inode->i_mode))
         return block_write(inode->i_zone[0], &file->f_pos, buf, count);

@@ -159,7 +159,7 @@ struct task_struct {
  *
  * used_math = 0;
  *
- * tty = -1;  it doen't use any tty
+ * tty = -1;  it doesn't use any tty
  * umask = 0022;
  * pwd = NULL;
  * root = NULL;

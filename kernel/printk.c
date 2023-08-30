@@ -26,18 +26,19 @@ int printk(const char *fmt, ...)
     va_start(args, fmt);
     len = vsprintf(buf, fmt, args); // return the length of buf
     va_end(args);
-    __asm__("pushw %%fs\n\t"
-            "pushw %%ds\n\t"
-            "popw  %%fs\n\t" // set %fs = %ds
-            "pushl %0\n\t"
-            "pushl $buf\n\t"
-            "pushl $0\n\t"  // immediate value $0 not %0 :-)
-            "call tty_write\n\t"   // :tag tty_write, TO_READ
-            "addl $8, %%esp\n\t"
-            "popl %0\n\t"
-            "popw %%fs"
-            :
-            : "r" (len));
+    __asm__ ("pushw %%fs\n\t"
+             "pushw %%ds\n\t"
+             "popw  %%fs\n\t" // set %fs = %ds
+             "pushl %0\n\t"
+             "pushl $buf\n\t"
+             "pushl $0\n\t"  // immediate value $0 not %0 :-)
+             "call tty_write\n\t"
+             "addl $8, %%esp\n\t"
+             "popl %0\n\t"
+             "popw %%fs\n\t"
+             :
+             : "r" (len)
+            );
     return len;
 }
 
