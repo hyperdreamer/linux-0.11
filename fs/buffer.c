@@ -285,7 +285,6 @@ void brelse(struct buffer_head* buf)
 struct buffer_head* bread(int dev, int block)
 {
 	struct buffer_head* bh = getblk(dev, block);
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	if (!bh) panic("bread: getblk returned NULL\n");
     //////////////////////////////////////////////////////////////////////////
     /* 
