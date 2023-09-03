@@ -201,14 +201,11 @@ struct buffer_head* get_hash_table(int dev, int block)
 {
     for (;;) {
         struct buffer_head* bh = find_buffer(dev, block);
-        //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         if (!bh) return NULL;
-        //////////////////////////////////////////////////////////////////////
+     
         bh->b_count++;  // make sure it won't be freed
         wait_on_buffer(bh);
-        /***************************************************************/
         if (bh->b_dev == dev && bh->b_blocknr == block) return bh;
-        //////////////////////////////////////////////////////////////////////
         bh->b_count--;  // make sure it can be freed again
     }
 }
