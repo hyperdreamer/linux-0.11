@@ -257,13 +257,13 @@ repeat:
     if (find_buffer(dev, block)) goto repeat;
     /* OK, FINALLY we know that this buffer is the only one of it's kind, */
     /* and that it's unused (b_count=0), unlocked (b_lock=0), and clean */
-    bh->b_count=1;
-    bh->b_dirt=0;
-    bh->b_uptodate=0;
+    bh->b_count = 1;
+    bh->b_dirt = 0;
+    bh->b_uptodate = 0;
     remove_from_queues(bh);
     /***************************************************************/
-    bh->b_dev=dev;
-    bh->b_blocknr=block;
+    bh->b_dev = dev;
+    bh->b_blocknr = block;
     insert_into_queues(bh);
     /***************************************************************/
     return bh;
