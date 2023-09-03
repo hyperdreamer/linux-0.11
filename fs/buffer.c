@@ -319,11 +319,11 @@ struct buffer_head* breada(int dev, int first, ...)
 {
     va_list args;
     va_start(args, first);
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
     struct buffer_head* bh = getblk(dev, first);
     if (!bh) panic("bread: getblk returned NULL\n");
     if (!bh->b_uptodate) ll_rw_block(READ, bh);
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+
     while ((first = va_arg(args, int)) >= 0) {
         struct buffer_head* tmp = getblk(dev, first);
         if (tmp) {
