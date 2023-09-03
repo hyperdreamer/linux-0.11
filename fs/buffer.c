@@ -54,7 +54,6 @@ static inline void wait_on_buffer(struct buffer_head* bh)
 static inline void sync_buffer(struct buffer_head* bh)
 {
     wait_on_buffer(bh); // no need to lock strictly
-    //////////////////////////////////////////////////////////////////////////
     if (bh->b_dirt) ll_rw_block(WRITE, bh);
 }
 
@@ -62,10 +61,8 @@ static inline void sync_buffer(struct buffer_head* bh)
 static inline void do_sync(int dev) 
 {
     struct buffer_head* bh = start_buffer;
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     for (int i = 0; i < NR_BUFFERS; ++i, ++bh) {
         if (bh->b_dev != dev) continue;
-        //////////////////////////////////////////////////////////////////////
         wait_on_buffer(bh); // no need to lock strictly
         if (bh->b_dev == dev && bh->b_dirt) ll_rw_block(WRITE, bh);
     }
@@ -74,7 +71,6 @@ static inline void do_sync(int dev)
 static inline void invalidate_buffers(int dev)
 {
     struct buffer_head* bh = start_buffer;
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     for (int i = 0; i < NR_BUFFERS; ++i, ++bh) {
         if (bh->b_dev != dev) continue;
         wait_on_buffer(bh);
