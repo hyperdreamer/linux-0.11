@@ -272,11 +272,9 @@ repeat:
 void brelse(struct buffer_head* buf)
 {
 	if (!buf) return;
-    //////////////////////////////////////////////////////////////////////////
+
 	wait_on_buffer(buf);
-    /***************************************************************/
 	if (!(buf->b_count--)) panic("Trying to free free buffer");
-    /***************************************************************/
 	wake_up(&buffer_wait);
 }
 
