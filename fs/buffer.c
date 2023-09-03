@@ -125,13 +125,11 @@ static inline void insert_into_queues(struct buffer_head* bh)
 static inline struct buffer_head* find_buffer(int dev, int block)
 {		
     struct buffer_head* tmp = hash(dev, block);
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     while (tmp) {
         if (tmp->b_dev == dev && tmp->b_blocknr == block) return tmp;
         /*******************************************************/
         tmp = tmp->b_next;
     }
-    //////////////////////////////////////////////////////////////////////////
     return NULL;
 }
 
