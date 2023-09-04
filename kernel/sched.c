@@ -108,7 +108,7 @@ void schedule(void)
 {
 	struct task_struct** p;
 /* check alarm, wake up any interruptible tasks that have got a signal */
-    for (p = &LAST_TASK; p > &FIRST_TASK; --p) /* TO READ */
+    for (p = &LAST_TASK; p > &FIRST_TASK; --p)
         if (*p) {
             if ((*p)->alarm && (*p)->alarm < jiffies) 
             {
