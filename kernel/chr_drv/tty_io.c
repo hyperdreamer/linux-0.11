@@ -270,8 +270,8 @@ int tty_read(unsigned channel, char* buf, int nr)
     char* b = buf;
     struct tty_struct* tty = &tty_table[channel];
     long oldalarm = current->alarm;
-    int time = 10L * tty->termios.c_cc[VTIME];  // VTIME == 5
-    int minimum = tty->termios.c_cc[VMIN];      // VMIN == 6
+    int time = 10L * tty->termios.c_cc[VTIME];  // VTIME == 5, time :=0
+    int minimum = tty->termios.c_cc[VMIN];      // VMIN == 6, minimum := 1
     bool flag = false;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
     if (time && !minimum) {
@@ -306,7 +306,7 @@ int tty_read(unsigned channel, char* buf, int nr)
             if (c == EOF_CHAR(tty) || c == 10) tty->secondary.data--;
             /*******************************************************/
             if (c == EOF_CHAR(tty) && L_CANON(tty)) 
-                return (b - buf);
+                return (b-buf);
             else {
                 put_fs_byte(c, b++);
                 --nr; //if (!--nr) break;
@@ -318,13 +318,13 @@ int tty_read(unsigned channel, char* buf, int nr)
             current->alarm = flag ? time + jiffies : oldalarm;
         }
         /***************************************************************/
-        if ((L_CANON(tty) && b - buf) || b - buf >= minimum) break;
+        if ((L_CANON(tty) && b-buf) || b-buf >= minimum) break;
     }
     //////////////////////////////////////////////////////////////////////////
     current->alarm = oldalarm;
     //////////////////////////////////////////////////////////////////////////
-    if (current->signal && !(b - buf)) return -EINTR;
-    return (b - buf);   // return the nr of bytes read
+    if (current->signal && !(b-buf)) return -EINTR;
+    return (b-buf);   // return the nr of bytes read
 }
 
 int tty_write(unsigned channel, char* buf, int nr)
