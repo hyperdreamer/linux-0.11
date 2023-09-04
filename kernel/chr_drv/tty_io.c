@@ -270,7 +270,7 @@ int tty_read(unsigned channel, char* buf, int nr)
     char* b = buf;
     struct tty_struct* tty = &tty_table[channel];
     long oldalarm = current->alarm;
-    int time = 10L * tty->termios.c_cc[VTIME];  // VTIME == 5, time :=0
+    int time = 10L * tty->termios.c_cc[VTIME];  // VTIME == 5, time := 0
     int minimum = tty->termios.c_cc[VMIN];      // VMIN == 6, minimum := 1
     bool flag = false;
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
