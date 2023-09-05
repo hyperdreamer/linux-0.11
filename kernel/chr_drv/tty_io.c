@@ -290,13 +290,13 @@ int tty_read(unsigned channel, char* buf, int nr)
         /***************************************************************/
         if (current->signal) break;
         /***************************************************************/
-        if (EMPTY(tty->secondary)) {
+        if (EMPTY(tty->secondary) || 
+            (L_CANON(tty) && !tty->secondary.data && 
+             LEFT(tty->secondary) > 20))  
+        {
             sleep_if_empty(&tty->secondary);
             continue;
         }
-        else if (L_CANON(tty) && !tty->secondary.data && 
-                 LEFT(tty->secondary) > 20) 
-            continue;
         /***************************************************************/
         do {
             char c;
