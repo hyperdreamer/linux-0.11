@@ -168,7 +168,7 @@ int sys_times(struct tms* tbuf)
     return jiffies;
 }
 
-int sys_brk(unsigned long end_data_seg) // I don't get it :-(
+int sys_brk(unsigned long end_data_seg) // heap area?
 {
     if (end_data_seg >= current->end_code &&
         end_data_seg < current->start_stack - 16384)
